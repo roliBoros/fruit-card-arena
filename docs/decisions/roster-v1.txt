@@ -1,0 +1,1 @@
+First set abilities are now defined in src/data/cards.ts. These values are the gameplay baseline and may be tuned after testing.
