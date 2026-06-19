@@ -2,6 +2,7 @@ import { cardById } from '../data/registry';
 import type { FighterState, FruitCard } from '../types';
 
 export type BattleAction = 'attack' | 'guard' | 'special' | 'bonus';
+export type Difficulty = 'easy' | 'normal' | 'hard';
 export type BattleEffect = { type: 'hit' | 'guard' | 'heal' | 'special' | 'miss'; amount?: number } | null;
 
 export interface TurnResult {
@@ -49,17 +50,24 @@ function applyDamage(target: FighterState, rawDamage: number) {
   return { damage, missed: false };
 }
 
-function normalDamage(attacker: FighterState, defender: FighterState, bonus = 0) {
+const difficultySettings: Record<Difficulty, { damage: number; specialChance: number; guardChance: number }> = {
+  easy: { damage: 0.82, specialChance: 0.25, guardChance: 0.2 },
+  normal: { damage: 1, specialChance: 0.42, guardChance: 0.35 },
+  hard: { damage: 1.18, specialChance: 0.65, guardChance: 0.5 },
+};
+
+function normalDamage(attacker: FighterState, defender: FighterState, bonus = 0, multiplier = 1) {
   const attackCard = cardById[attacker.cardId];
   const defendCard = cardById[defender.cardId];
   const roll = Math.floor(Math.random() * 7) - 3;
   const weakened = attacker.weakened;
   attacker.weakened = 0;
 
-  return Math.max(8, attackCard.battle.attack + roll + bonus - Math.floor(defendCard.battle.defence * 0.55) - weakened);
+  const damage = attackCard.battle.attack + roll + bonus - Math.floor(defendCard.battle.defence * 0.55) - weakened;
+  return Math.max(8, Math.round(damage * multiplier));
 }
 
-function resolveSpecial(attacker: FighterState, target: FighterState, opposingTeam: FighterState[]) {
+function resolveSpecial(attacker: FighterState, target: FighterState, opposingTeam: FighterState[], multiplier = 1) {
   const card = cardById[attacker.cardId];
   const move = card.special;
   attacker.specialUsed = true;
@@ -70,7 +78,7 @@ function resolveSpecial(attacker: FighterState, target: FighterState, opposingTe
 
   switch (move.kind) {
     case 'damage':
-      totalDamage = applyDamage(target, move.amount).damage;
+      totalDamage = applyDamage(target, Math.round(move.amount * multiplier)).damage;
       break;
     case 'shield':
       attacker.shield += move.amount;
@@ -84,14 +92,14 @@ function resolveSpecial(attacker: FighterState, target: FighterState, opposingTe
     case 'double-hit': {
       const hits = move.secondary ?? 2;
       for (let index = 0; index < hits; index += 1) {
-        totalDamage += applyDamage(target, move.amount).damage;
+        totalDamage += applyDamage(target, Math.round(move.amount * multiplier)).damage;
         if (target.hp <= 0) break;
       }
       break;
     }
     case 'splash': {
-      totalDamage = applyDamage(target, move.amount).damage;
-      const benchDamage = move.secondary ?? 5;
+      totalDamage = applyDamage(target, Math.round(move.amount * multiplier)).damage;
+      const benchDamage = Math.round((move.secondary ?? 5) * multiplier);
       opposingTeam.forEach((fighter) => {
         if (fighter !== target && fighter.hp > 0) fighter.hp = Math.max(0, fighter.hp - benchDamage);
       });
@@ -99,22 +107,22 @@ function resolveSpecial(attacker: FighterState, target: FighterState, opposingTe
       break;
     }
     case 'drain': {
-      totalDamage = applyDamage(target, move.amount).damage;
+      totalDamage = applyDamage(target, Math.round(move.amount * multiplier)).damage;
       const before = attacker.hp;
       attacker.hp = Math.min(card.battle.maxHp, attacker.hp + (move.secondary ?? Math.floor(totalDamage / 2)));
       healed = attacker.hp - before;
       break;
     }
     case 'weaken':
-      totalDamage = applyDamage(target, move.amount).damage;
+      totalDamage = applyDamage(target, Math.round(move.amount * multiplier)).damage;
       target.weakened += move.secondary ?? 8;
       break;
     case 'dodge':
-      totalDamage = applyDamage(target, move.amount).damage;
+      totalDamage = applyDamage(target, Math.round(move.amount * multiplier)).damage;
       attacker.evade = true;
       break;
     case 'damage-shield':
-      totalDamage = applyDamage(target, move.amount).damage;
+      totalDamage = applyDamage(target, Math.round(move.amount * multiplier)).damage;
       attacker.shield += move.secondary ?? 14;
       break;
     default: {
@@ -126,15 +134,16 @@ function resolveSpecial(attacker: FighterState, target: FighterState, opposingTe
   return { totalDamage, healed, note };
 }
 
-export function chooseEnemyAction(fighter: FighterState): Exclude<BattleAction, 'bonus'> {
+export function chooseEnemyAction(fighter: FighterState, difficulty: Difficulty = 'normal'): Exclude<BattleAction, 'bonus'> {
   const card = cardById[fighter.cardId];
   const hpRatio = fighter.hp / card.battle.maxHp;
-  if (!fighter.specialUsed && (hpRatio < 0.55 || Math.random() < 0.42)) return 'special';
-  if (hpRatio < 0.35 && Math.random() < 0.35) return 'guard';
+  const settings = difficultySettings[difficulty];
+  if (!fighter.specialUsed && (hpRatio < 0.45 || Math.random() < settings.specialChance)) return 'special';
+  if (hpRatio < 0.4 && Math.random() < settings.guardChance) return 'guard';
   return 'attack';
 }
 
-export function resolveTurn(playerTeam: FighterState[], enemyTeam: FighterState[], action: BattleAction, currentBonusUsed: boolean): TurnResult {
+export function resolveTurn(playerTeam: FighterState[], enemyTeam: FighterState[], action: BattleAction, currentBonusUsed: boolean, difficulty: Difficulty = 'normal'): TurnResult {
   const players = playerTeam.map((fighter) => ({ ...fighter }));
   const enemies = enemyTeam.map((fighter) => ({ ...fighter }));
   const pIndex = livingIndex(players);
@@ -183,18 +192,19 @@ export function resolveTurn(playerTeam: FighterState[], enemyTeam: FighterState[
   if (enemy.hp <= 0) {
     enemyText = `${enemyCard.name} was defeated.`;
   } else {
-    const enemyAction = chooseEnemyAction(enemy);
+    const settings = difficultySettings[difficulty];
+    const enemyAction = chooseEnemyAction(enemy, difficulty);
     if (enemyAction === 'guard') {
       enemy.guard = true;
       enemyText = `${enemyCard.name} chose Guard.`;
       enemyEffect = { type: 'guard' };
     } else if (enemyAction === 'special') {
-      const result = resolveSpecial(enemy, player, players);
+      const result = resolveSpecial(enemy, player, players, settings.damage);
       enemyText = `${enemyCard.name} used ${result.note}.`;
       enemyEffect = result.healed > 0 && result.totalDamage === 0 ? { type: 'heal', amount: result.healed } : { type: 'special', amount: result.totalDamage || result.healed };
       if (result.totalDamage > 0) playerEffect = { type: 'hit', amount: result.totalDamage };
     } else {
-      const result = applyDamage(player, normalDamage(enemy, player));
+      const result = applyDamage(player, normalDamage(enemy, player, 0, settings.damage));
       enemyText = result.missed ? `${playerCard.name} dodged the counterattack.` : `${enemyCard.name} countered for ${result.damage}.`;
       playerEffect = result.missed ? { type: 'miss' } : { type: 'hit', amount: result.damage };
     }

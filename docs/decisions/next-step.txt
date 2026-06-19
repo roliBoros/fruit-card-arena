@@ -1,1 +1,1 @@
-Next: add individual artwork assets, then test and tune the three-card battle.
+Next: produce and approve the remaining individual artwork assets, then replace the emoji fallbacks.

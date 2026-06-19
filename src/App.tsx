@@ -2,20 +2,38 @@ import { FormEvent, useMemo, useState } from 'react';
 import { cardById, cards } from './data/registry';
 import { tournamentStages } from './data/tournament';
 import { freshFighter, livingIndex, resolveTurn } from './game/engine';
-import type { BattleAction, BattleEffect } from './game/engine';
+import type { BattleAction, BattleEffect, Difficulty } from './game/engine';
 import type { FighterState, FruitCard } from './types';
 
 type Screen = 'login' | 'team' | 'tournament' | 'battle' | 'result';
 type BattleMode = 'exhibition' | 'tournament';
+type BattleWinner = 'player' | 'enemy' | null;
+type PlayerRecord = { wins: number; losses: number; battles: number; arenaPoints: number };
+
+const emptyRecord: PlayerRecord = { wins: 0, losses: 0, battles: 0, arenaPoints: 0 };
+
+function readRecord(): PlayerRecord {
+  try {
+    const saved = JSON.parse(localStorage.getItem('fca-record') ?? '{}');
+    return {
+      wins: Number(saved.wins) || 0,
+      losses: Number(saved.losses) || 0,
+      battles: Number(saved.battles) || 0,
+      arenaPoints: Number(saved.arenaPoints) || 0,
+    };
+  } catch {
+    return emptyRecord;
+  }
+}
 
 const clamp = (value: number, minimum: number, maximum: number) => Math.min(maximum, Math.max(minimum, value));
 
 function Card({ card, selected, compact = false, onClick }: { card: FruitCard; selected?: boolean; compact?: boolean; onClick?: () => void }) {
   const artUrl = card.art ? `${import.meta.env.BASE_URL}${card.art}` : null;
   return (
-    <article className={`fruit-card ${selected ? 'selected' : ''} ${compact ? 'compact' : ''}`} style={{ '--accent': card.accent } as React.CSSProperties} onClick={onClick} tabIndex={onClick ? 0 : undefined} onKeyDown={(event) => { if (onClick && (event.key === 'Enter' || event.key === ' ')) onClick(); }}>
+    <article className={`fruit-card ${selected ? 'selected' : ''} ${compact ? 'compact' : ''}`} style={{ '--accent': card.accent } as React.CSSProperties} onClick={onClick} role={onClick ? 'button' : undefined} aria-pressed={onClick ? Boolean(selected) : undefined} tabIndex={onClick ? 0 : undefined} onKeyDown={(event) => { if (onClick && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onClick(); } }}>
       <header><strong>{card.name}</strong><span>{card.rarity}</span></header>
-      <div className="character" aria-label={`${card.fruit} character`}>{artUrl ? <img src={artUrl} alt={`${card.name} card artwork`} /> : <span>{card.icon}</span>}</div>
+      <div className="character" aria-label={`${card.fruit} character`}>{artUrl ? <><img src={artUrl} alt={`${card.name} card artwork`} onError={(event) => { event.currentTarget.hidden = true; const fallback = event.currentTarget.nextElementSibling as HTMLElement | null; if (fallback) fallback.hidden = false; }} /><span hidden>{card.icon}</span></> : <span>{card.icon}</span>}</div>
       <div className="stats">
         <span>✊ <b>{card.collector.power}</b><small>Power</small></span>
         <span>💥 <b>{card.collector.damage}</b><small>Damage</small></span>
@@ -37,6 +55,10 @@ function HealthBar({ fighter }: { fighter: FighterState }) {
   return <div className="health-block"><div className="health"><i style={{ width: `${percent}%` }} /><span>{fighter.hp} / {card.battle.maxHp} HP</span></div><div className="status-row">{fighter.shield > 0 && <span>🛡 {fighter.shield}</span>}{fighter.guard && <span>Guarding</span>}{fighter.evade && <span>Evade ready</span>}{fighter.weakened > 0 && <span>Weakened -{fighter.weakened}</span>}</div></div>;
 }
 
+function Tutorial({ onClose }: { onClose: () => void }) {
+  return <div className="tutorial-backdrop" role="dialog" aria-modal="true" aria-labelledby="tutorial-title"><section className="tutorial-panel"><p className="eyebrow">Quick start</p><h2 id="tutorial-title">How to play</h2><div className="tutorial-steps"><article><b>1</b><h3>Pick a balanced team</h3><p>Choose exactly three cards. When one is defeated, the next steps in automatically.</p></article><article><b>2</b><h3>Choose each move</h3><p>Attack deals damage. Guard halves the next hit. Each fighter gets one Special.</p></article><article><b>3</b><h3>Time your Bonus</h3><p>Your +20 Bonus powers up one attack per battle. Save it for the right moment.</p></article><article><b>4</b><h3>Claim the crown</h3><p>Defeat all three rival cards. Tournament first clears unlock stages and award points.</p></article></div><button onClick={onClose}>Ready to battle</button></section></div>;
+}
+
 export default function App() {
   const storedName = localStorage.getItem('fca-username') ?? '';
   const storedProgress = Number(localStorage.getItem('fca-tournament-progress') ?? '0');
@@ -52,8 +74,13 @@ export default function App() {
   const [message, setMessage] = useState('Choose an action. The maths is handled automatically.');
   const [playerEffect, setPlayerEffect] = useState<BattleEffect>(null);
   const [enemyEffect, setEnemyEffect] = useState<BattleEffect>(null);
-  const [winner, setWinner] = useState<string | null>(null);
+  const [battleWinner, setBattleWinner] = useState<BattleWinner>(null);
   const [battleMode, setBattleMode] = useState<BattleMode>('exhibition');
+  const savedDifficulty = localStorage.getItem('fca-difficulty');
+  const [difficulty, setDifficulty] = useState<Difficulty>(savedDifficulty === 'easy' || savedDifficulty === 'hard' ? savedDifficulty : 'normal');
+  const [record, setRecord] = useState<PlayerRecord>(readRecord);
+  const [rewardEarned, setRewardEarned] = useState(0);
+  const [showTutorial, setShowTutorial] = useState(localStorage.getItem('fca-tutorial-seen') !== 'yes');
   const [stageIndex, setStageIndex] = useState(Math.min(storedProgress, tournamentStages.length - 1));
   const [tournamentProgress, setTournamentProgress] = useState(storedProgress);
 
@@ -66,15 +93,30 @@ export default function App() {
   const availableCards = useMemo(() => cards, []);
   const currentStage = tournamentStages[stageIndex];
 
-  function enterArena(event: FormEvent) { event.preventDefault(); const cleanName = draftName.trim().slice(0, 18); if (!cleanName) return; localStorage.setItem('fca-username', cleanName); setUsername(cleanName); setScreen('team'); }
+  function enterArena(event: FormEvent) { event.preventDefault(); const cleanName = draftName.trim().slice(0, 18); if (!cleanName) return; localStorage.setItem('fca-username', cleanName); setUsername(cleanName); setShowTutorial(true); setScreen('team'); }
   function toggleCard(id: string) { setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : current.length >= 3 ? current : [...current, id]); }
+  function dismissTutorial() { localStorage.setItem('fca-tutorial-seen', 'yes'); setShowTutorial(false); }
+  function changeDifficulty(value: Difficulty) { localStorage.setItem('fca-difficulty', value); setDifficulty(value); }
+
+  function saveResult(result: Exclude<BattleWinner, null>, points: number) {
+    setRecord((current) => {
+      const next = {
+        wins: current.wins + (result === 'player' ? 1 : 0),
+        losses: current.losses + (result === 'enemy' ? 1 : 0),
+        battles: current.battles + 1,
+        arenaPoints: current.arenaPoints + points,
+      };
+      localStorage.setItem('fca-record', JSON.stringify(next));
+      return next;
+    });
+  }
 
   function beginBattle(enemyIds: string[], mode: BattleMode, index = 0) {
     if (selectedIds.length !== 3) return;
     localStorage.setItem('fca-team', JSON.stringify(selectedIds));
     setPlayerTeam(selectedIds.map((id) => freshFighter(cardById[id])));
     setEnemyTeam(enemyIds.map((id) => freshFighter(cardById[id])));
-    setBattleMode(mode); setStageIndex(index); setBonusUsed(false); setWinner(null); setPlayerEffect(null); setEnemyEffect(null);
+    setBattleMode(mode); setStageIndex(index); setBonusUsed(false); setBattleWinner(null); setRewardEarned(0); setPlayerEffect(null); setEnemyEffect(null);
     setMessage('Battle ready. Choose Attack, Guard, Special or your one-use Bonus.'); setScreen('battle');
   }
 
@@ -87,32 +129,37 @@ export default function App() {
   function startTournamentStage(index: number) { const stage = tournamentStages[index]; if (!stage || index > tournamentProgress) return; beginBattle([...stage.team], 'tournament', index); }
 
   function playTurn(action: BattleAction) {
-    if (!playerActive || !enemyActive || winner || (action === 'special' && playerActive.specialUsed) || (action === 'bonus' && bonusUsed)) return;
-    const result = resolveTurn(playerTeam, enemyTeam, action, bonusUsed);
+    if (!playerActive || !enemyActive || battleWinner || (action === 'special' && playerActive.specialUsed) || (action === 'bonus' && bonusUsed)) return;
+    const result = resolveTurn(playerTeam, enemyTeam, action, bonusUsed, difficulty);
     setPlayerTeam(result.players); setEnemyTeam(result.enemies); setPlayerEffect(result.playerEffect); setEnemyEffect(result.enemyEffect); setBonusUsed(result.bonusUsed); setMessage(`${result.playerText} ${result.enemyText}`.trim());
     if (result.winner) {
-      const resultWinner = result.winner === 'player' ? username : battleMode === 'tournament' ? currentStage.opponent : 'Arena Rival';
-      setWinner(resultWinner);
+      setBattleWinner(result.winner);
+      let points = 0;
       if (result.winner === 'player' && battleMode === 'tournament') {
+        const firstClear = stageIndex >= tournamentProgress;
+        points = firstClear ? currentStage.reward : 0;
+        setRewardEarned(points);
         const nextProgress = Math.min(tournamentStages.length, Math.max(tournamentProgress, stageIndex + 1));
         setTournamentProgress(nextProgress); localStorage.setItem('fca-tournament-progress', String(nextProgress));
       }
+      saveResult(result.winner, points);
       setScreen('result');
     }
   }
 
   if (screen === 'login') return <main className="login-screen"><section className="login-panel"><p className="eyebrow">Welcome to</p><h1>Fruit Card <span>Arena</span></h1><p>Enter a simple player name. No email or password is required.</p><form onSubmit={enterArena}><input value={draftName} onChange={(event) => setDraftName(event.target.value)} maxLength={18} placeholder="Player name" autoFocus /><button type="submit">Enter Arena</button></form><small>Progress is stored only in this browser.</small></section></main>;
 
-  if (screen === 'team') return <main className="app-shell"><nav><b>FRUIT CARD ARENA</b><span>Player: {username}</span></nav><section className="hero compact-hero"><p className="eyebrow">Build your squad</p><h1>Choose Three</h1><p>Your selected team is used for exhibitions and the tournament route.</p></section><section className="selection-bar"><strong>{selectedIds.length}/3 selected</strong><div className="actions"><button onClick={startExhibition} disabled={selectedIds.length !== 3}>Exhibition</button><button className="bonus" onClick={() => setScreen('tournament')} disabled={selectedIds.length !== 3}>Tournament</button></div></section><section className="card-grid collection-grid">{availableCards.map((card) => <Card key={card.id} card={card} selected={selectedIds.includes(card.id)} compact onClick={() => toggleCard(card.id)} />)}</section></main>;
+  if (screen === 'team') return <><main className="app-shell"><nav><b>FRUIT CARD ARENA</b><div className="nav-actions"><button className="nav-button" onClick={() => setShowTutorial(true)}>How to Play</button><span>Player: {username}</span></div></nav><section className="hero compact-hero"><p className="eyebrow">Build your squad</p><h1>Choose Three</h1><p>Your selected team is used for exhibitions and the tournament route.</p></section><section className="player-dashboard" aria-label="Player record"><span><b>{record.wins}</b> Wins</span><span><b>{record.losses}</b> Losses</span><span><b>{record.battles}</b> Battles</span><span><b>{record.arenaPoints}</b> Arena Points</span></section><section className="difficulty-picker"><div><strong>Rival difficulty</strong><small>Changes rival tactics and damage.</small></div>{(['easy', 'normal', 'hard'] as Difficulty[]).map((level) => <button key={level} className={difficulty === level ? 'active' : ''} onClick={() => changeDifficulty(level)}>{level}</button>)}</section><section className="selection-bar"><strong>{selectedIds.length}/3 selected</strong><div className="actions"><button onClick={startExhibition} disabled={selectedIds.length !== 3}>Exhibition</button><button className="bonus" onClick={() => setScreen('tournament')} disabled={selectedIds.length !== 3}>Tournament</button></div></section><section className="card-grid collection-grid">{availableCards.map((card) => <Card key={card.id} card={card} selected={selectedIds.includes(card.id)} compact onClick={() => toggleCard(card.id)} />)}</section></main>{showTutorial && <Tutorial onClose={dismissTutorial} />}</>;
 
   if (screen === 'tournament') return <main className="app-shell"><nav><b>FRUIT CARD ARENA</b><button className="nav-button" onClick={() => setScreen('team')}>Back to Team</button></nav><section className="hero compact-hero"><p className="eyebrow">Single-player route</p><h1>Tournament</h1><p>Defeat each rival to unlock the next arena.</p></section><section className="tournament-grid">{tournamentStages.map((stage, index) => { const unlocked = index <= tournamentProgress; const cleared = index < tournamentProgress; return <article key={stage.id} className={`stage-card ${!unlocked ? 'locked' : ''}`}><span className="stage-number">{index + 1}</span><h2>{stage.name}</h2><p>{stage.subtitle}</p><div className="stage-team">{stage.team.map((id) => <span key={id} title={cardById[id].name}>{cardById[id].icon}</span>)}</div><small>Opponent: {stage.opponent} · Reward: {stage.reward}</small><button disabled={!unlocked} onClick={() => startTournamentStage(index)}>{cleared ? 'Replay Stage' : unlocked ? 'Fight' : 'Locked'}</button></article>; })}</section></main>;
 
   if (screen === 'result') {
-    const tournamentWin = winner === username && battleMode === 'tournament';
+    const tournamentWin = battleWinner === 'player' && battleMode === 'tournament';
     const hasNext = stageIndex + 1 < tournamentStages.length;
-    return <main className="login-screen result-screen"><section className="login-panel"><p className="eyebrow">Battle complete</p><h1>{winner === username ? 'Victory!' : 'Defeat'}</h1><p>{winner} won the match.</p>{tournamentWin && <p>You earned {currentStage.reward} arena points.</p>}<div className="result-actions">{tournamentWin && hasNext ? <button onClick={() => { setScreen('tournament'); setStageIndex(stageIndex + 1); }}>Continue Route</button> : <button onClick={() => battleMode === 'tournament' ? startTournamentStage(stageIndex) : startExhibition()}>Rematch</button>}<button className="secondary" onClick={() => setScreen(battleMode === 'tournament' ? 'tournament' : 'team')}>Back</button></div></section></main>;
+    const winnerName = battleWinner === 'player' ? username : battleMode === 'tournament' ? currentStage.opponent : 'Arena Rival';
+    return <main className="login-screen result-screen"><section className="login-panel"><p className="eyebrow">Battle complete</p><h1>{battleWinner === 'player' ? 'Victory!' : 'Defeat'}</h1><p>{winnerName} won the match.</p>{tournamentWin && rewardEarned > 0 && <p>You earned {rewardEarned} arena points.</p>}{tournamentWin && rewardEarned === 0 && <p>Stage cleared again. First-clear points were already claimed.</p>}<div className="result-actions">{tournamentWin && hasNext ? <button onClick={() => { setScreen('tournament'); setStageIndex(stageIndex + 1); }}>Continue Route</button> : <button onClick={() => battleMode === 'tournament' ? startTournamentStage(stageIndex) : startExhibition()}>Rematch</button>}<button className="secondary" onClick={() => setScreen(battleMode === 'tournament' ? 'tournament' : 'team')}>Back</button></div></section></main>;
   }
 
   const rivalName = battleMode === 'tournament' ? currentStage.opponent : 'Arena Rival';
-  return <main className="app-shell"><nav><b>FRUIT CARD ARENA</b><span>{battleMode === 'tournament' ? currentStage.name : 'Exhibition'}</span></nav><section className="hero battle-hero"><p className="eyebrow">Three-card battle</p><h1>Battle Arena</h1></section><section className="team-heads"><TeamStrip team={playerTeam} activeIndex={playerActiveIndex} label={`${username}'s team`} /><TeamStrip team={enemyTeam} activeIndex={enemyActiveIndex} label={`${rivalName}'s team`} /></section><section className="arena"><div className={`fighter ${playerEffect?.type ?? ''}`}><h2>{username}</h2>{playerActive && <HealthBar fighter={playerActive} />}{playerCard && <Card card={playerCard} />}{playerEffect?.amount ? <div className={`floating-effect ${playerEffect.type}`}>{playerEffect.type === 'heal' ? '+' : '-'}{playerEffect.amount}</div> : null}{playerEffect?.type === 'miss' && <div className="floating-effect miss">MISS</div>}</div><div className="versus">VS</div><div className={`fighter ${enemyEffect?.type ?? ''}`}><h2>{rivalName}</h2>{enemyActive && <HealthBar fighter={enemyActive} />}{enemyCard && <Card card={enemyCard} />}{enemyEffect?.amount ? <div className={`floating-effect ${enemyEffect.type}`}>{enemyEffect.type === 'heal' ? '+' : '-'}{enemyEffect.amount}</div> : null}{enemyEffect?.type === 'miss' && <div className="floating-effect miss">MISS</div>}</div></section><section className="battle-console"><p className="battle-message">{message}</p><div className="actions"><button onClick={() => playTurn('attack')}>⚔ Attack</button><button onClick={() => playTurn('guard')}>🛡 Guard</button><button onClick={() => playTurn('special')} disabled={Boolean(playerActive?.specialUsed)}>✨ {playerCard?.special.name}</button><button className="bonus" onClick={() => playTurn('bonus')} disabled={bonusUsed}>+20 Bonus</button><button className="secondary" onClick={() => setScreen(battleMode === 'tournament' ? 'tournament' : 'team')}>Leave Battle</button></div></section></main>;
+  return <main className="app-shell"><nav><b>FRUIT CARD ARENA</b><span>{battleMode === 'tournament' ? currentStage.name : 'Exhibition'} · {difficulty}</span></nav><section className="hero battle-hero"><p className="eyebrow">Three-card battle</p><h1>Battle Arena</h1></section><section className="team-heads"><TeamStrip team={playerTeam} activeIndex={playerActiveIndex} label={`${username}'s team`} /><TeamStrip team={enemyTeam} activeIndex={enemyActiveIndex} label={`${rivalName}'s team`} /></section><section className="arena"><div className={`fighter ${playerEffect?.type ?? ''}`}><h2>{username}</h2>{playerActive && <HealthBar fighter={playerActive} />}{playerCard && <Card card={playerCard} />}{playerEffect?.amount ? <div className={`floating-effect ${playerEffect.type}`}>{playerEffect.type === 'heal' ? '+' : '-'}{playerEffect.amount}</div> : null}{playerEffect?.type === 'miss' && <div className="floating-effect miss">MISS</div>}</div><div className="versus">VS</div><div className={`fighter ${enemyEffect?.type ?? ''}`}><h2>{rivalName}</h2>{enemyActive && <HealthBar fighter={enemyActive} />}{enemyCard && <Card card={enemyCard} />}{enemyEffect?.amount ? <div className={`floating-effect ${enemyEffect.type}`}>{enemyEffect.type === 'heal' ? '+' : '-'}{enemyEffect.amount}</div> : null}{enemyEffect?.type === 'miss' && <div className="floating-effect miss">MISS</div>}</div></section><section className="battle-console"><p className="battle-message" aria-live="polite">{message}</p><div className="actions"><button onClick={() => playTurn('attack')}>⚔ Attack</button><button onClick={() => playTurn('guard')}>🛡 Guard</button><button onClick={() => playTurn('special')} disabled={Boolean(playerActive?.specialUsed)}>✨ {playerCard?.special.name}</button><button className="bonus" onClick={() => playTurn('bonus')} disabled={bonusUsed}>+20 Bonus</button><button className="secondary" onClick={() => setScreen(battleMode === 'tournament' ? 'tournament' : 'team')}>Leave Battle</button></div></section></main>;
 }
