@@ -1,0 +1,1 @@
+This directory records design decisions that should remain stable while the project is developed.
