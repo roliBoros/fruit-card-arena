@@ -6,7 +6,12 @@ A browser-based collectible card battle game inspired by the original hand-drawn
 
 - **Phase 0 — Project setup and catalogue:** complete
 - **Phase 1 — Production card artwork:** in progress
-- **Playable prototype:** scaffolded with temporary coded card visuals
+- **Phases 3–5 — Playable game, battle engine and polish:** complete
+- **Online game:** deployed automatically from `main` with GitHub Pages
+
+## Play online
+
+[Launch Fruit Card Arena](https://roliboros.github.io/fruit-card-arena/)
 
 The approved visual direction targets players aged **10+**: energetic, competitive and polished while keeping the personality of the original drawings.
 
@@ -19,6 +24,10 @@ The approved visual direction targets players aged **10+**: energetic, competiti
 - One Bonus card per battle for **+20 damage**
 - Lightweight card movement, impact flashes and floating damage effects
 - Browser storage for local progress
+- Easy, Normal and Hard rival difficulty
+- Five-stage tournament with first-clear rewards
+- Persistent wins, losses, battles and arena points
+- First-run tutorial and keyboard-friendly controls
 
 ## Technology
 
@@ -31,7 +40,7 @@ The approved visual direction targets players aged **10+**: energetic, competiti
 ## Run locally
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
@@ -61,6 +70,8 @@ fruit-card-arena/
 ## Important prototype limitation
 
 The username is stored only in the player's browser. It is not a secure account system and must not be used for payments, prizes or valuable progress.
+
+Most characters currently use polished coded card frames with emoji fallback art. Individual production artwork remains the main incomplete content phase.
 
 ## Ownership
 
