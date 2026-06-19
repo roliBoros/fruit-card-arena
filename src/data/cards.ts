@@ -36,6 +36,7 @@ export const cards: FruitCard[] = [
     },
     icon: '🍑',
     accent: '#e75387',
+    art: 'cards/peachy.webp',
   },
   {
     id: 'orange',
@@ -54,6 +55,7 @@ export const cards: FruitCard[] = [
     },
     icon: '🍊',
     accent: '#ef8b22',
+    art: 'cards/orange.webp',
   },
   {
     id: 'meloni',
@@ -90,6 +92,7 @@ export const cards: FruitCard[] = [
     },
     icon: '🍅',
     accent: '#cf3745',
+    art: 'cards/tom.webp',
   },
   {
     id: 'ava',
@@ -126,6 +129,7 @@ export const cards: FruitCard[] = [
     },
     icon: '🚲',
     accent: '#1487b8',
+    art: 'cards/bikelini.webp',
   },
   {
     id: 'piney',
@@ -143,6 +147,7 @@ export const cards: FruitCard[] = [
     },
     icon: '🍍',
     accent: '#e1a51f',
+    art: 'cards/piney.webp',
   },
   {
     id: 'grape',
@@ -161,6 +166,7 @@ export const cards: FruitCard[] = [
     },
     icon: '🍇',
     accent: '#7e3f97',
+    art: 'cards/grape.webp',
   },
   {
     id: 'poey',
@@ -179,6 +185,7 @@ export const cards: FruitCard[] = [
     },
     icon: '🥔',
     accent: '#9a682f',
+    art: 'cards/poey.webp',
   },
   {
     id: 'yello',
@@ -196,6 +203,7 @@ export const cards: FruitCard[] = [
     },
     icon: '🍌',
     accent: '#e3c91f',
+    art: 'cards/yello.webp',
   },
   {
     id: 'coco',
@@ -213,6 +221,7 @@ export const cards: FruitCard[] = [
     },
     icon: '🥥',
     accent: '#5f4330',
+    art: 'cards/coco.webp',
   },
   {
     id: 'appleini',
@@ -231,6 +240,7 @@ export const cards: FruitCard[] = [
     },
     icon: '🍎',
     accent: '#c9343f',
+    art: 'cards/appleini.webp',
   },
 ];
 

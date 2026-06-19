@@ -5,7 +5,7 @@ A browser-based collectible card battle game inspired by the original hand-drawn
 ## Current status
 
 - **Phase 0 — Project setup and catalogue:** complete
-- **Phase 1 — Production card artwork:** in progress
+- **Phases 1–2 — Production artwork and complete card set:** complete
 - **Phases 3–5 — Playable game, battle engine and polish:** complete
 - **Online game:** deployed automatically from `main` with GitHub Pages
 
@@ -71,7 +71,7 @@ fruit-card-arena/
 
 The username is stored only in the player's browser. It is not a secure account system and must not be used for payments, prizes or valuable progress.
 
-Most characters currently use polished coded card frames with emoji fallback art. Individual production artwork remains the main incomplete content phase.
+All 13 fighters use optimized individual production artwork, with an emoji fallback retained for resilient loading.
 
 ## Ownership
 

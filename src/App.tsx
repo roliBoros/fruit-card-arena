@@ -28,6 +28,11 @@ function readRecord(): PlayerRecord {
 
 const clamp = (value: number, minimum: number, maximum: number) => Math.min(maximum, Math.max(minimum, value));
 
+function CardAvatar({ card }: { card: FruitCard }) {
+  const artUrl = card.art ? `${import.meta.env.BASE_URL}${card.art}` : null;
+  return <span className="card-avatar">{artUrl ? <><img src={artUrl} alt="" onError={(event) => { event.currentTarget.hidden = true; const fallback = event.currentTarget.nextElementSibling as HTMLElement | null; if (fallback) fallback.hidden = false; }} /><span hidden>{card.icon}</span></> : <span>{card.icon}</span>}</span>;
+}
+
 function Card({ card, selected, compact = false, onClick }: { card: FruitCard; selected?: boolean; compact?: boolean; onClick?: () => void }) {
   const artUrl = card.art ? `${import.meta.env.BASE_URL}${card.art}` : null;
   return (
@@ -46,7 +51,7 @@ function Card({ card, selected, compact = false, onClick }: { card: FruitCard; s
 }
 
 function TeamStrip({ team, activeIndex, label }: { team: FighterState[]; activeIndex: number; label: string }) {
-  return <div className="team-strip" aria-label={label}>{team.map((fighter, index) => { const card = cardById[fighter.cardId]; return <div key={`${fighter.cardId}-${index}`} className={`team-token ${index === activeIndex ? 'active' : ''} ${fighter.hp <= 0 ? 'defeated' : ''}`}><span>{card.icon}</span><small>{card.name}</small></div>; })}</div>;
+  return <div className="team-strip" aria-label={label}>{team.map((fighter, index) => { const card = cardById[fighter.cardId]; return <div key={`${fighter.cardId}-${index}`} className={`team-token ${index === activeIndex ? 'active' : ''} ${fighter.hp <= 0 ? 'defeated' : ''}`}><CardAvatar card={card} /><small>{card.name}</small></div>; })}</div>;
 }
 
 function HealthBar({ fighter }: { fighter: FighterState }) {
@@ -151,7 +156,7 @@ export default function App() {
 
   if (screen === 'team') return <><main className="app-shell"><nav><b>FRUIT CARD ARENA</b><div className="nav-actions"><button className="nav-button" onClick={() => setShowTutorial(true)}>How to Play</button><span>Player: {username}</span></div></nav><section className="hero compact-hero"><p className="eyebrow">Build your squad</p><h1>Choose Three</h1><p>Your selected team is used for exhibitions and the tournament route.</p></section><section className="player-dashboard" aria-label="Player record"><span><b>{record.wins}</b> Wins</span><span><b>{record.losses}</b> Losses</span><span><b>{record.battles}</b> Battles</span><span><b>{record.arenaPoints}</b> Arena Points</span></section><section className="difficulty-picker"><div><strong>Rival difficulty</strong><small>Changes rival tactics and damage.</small></div>{(['easy', 'normal', 'hard'] as Difficulty[]).map((level) => <button key={level} className={difficulty === level ? 'active' : ''} onClick={() => changeDifficulty(level)}>{level}</button>)}</section><section className="selection-bar"><strong>{selectedIds.length}/3 selected</strong><div className="actions"><button onClick={startExhibition} disabled={selectedIds.length !== 3}>Exhibition</button><button className="bonus" onClick={() => setScreen('tournament')} disabled={selectedIds.length !== 3}>Tournament</button></div></section><section className="card-grid collection-grid">{availableCards.map((card) => <Card key={card.id} card={card} selected={selectedIds.includes(card.id)} compact onClick={() => toggleCard(card.id)} />)}</section></main>{showTutorial && <Tutorial onClose={dismissTutorial} />}</>;
 
-  if (screen === 'tournament') return <main className="app-shell"><nav><b>FRUIT CARD ARENA</b><button className="nav-button" onClick={() => setScreen('team')}>Back to Team</button></nav><section className="hero compact-hero"><p className="eyebrow">Single-player route</p><h1>Tournament</h1><p>Defeat each rival to unlock the next arena.</p></section><section className="tournament-grid">{tournamentStages.map((stage, index) => { const unlocked = index <= tournamentProgress; const cleared = index < tournamentProgress; return <article key={stage.id} className={`stage-card ${!unlocked ? 'locked' : ''}`}><span className="stage-number">{index + 1}</span><h2>{stage.name}</h2><p>{stage.subtitle}</p><div className="stage-team">{stage.team.map((id) => <span key={id} title={cardById[id].name}>{cardById[id].icon}</span>)}</div><small>Opponent: {stage.opponent} · Reward: {stage.reward}</small><button disabled={!unlocked} onClick={() => startTournamentStage(index)}>{cleared ? 'Replay Stage' : unlocked ? 'Fight' : 'Locked'}</button></article>; })}</section></main>;
+  if (screen === 'tournament') return <main className="app-shell"><nav><b>FRUIT CARD ARENA</b><button className="nav-button" onClick={() => setScreen('team')}>Back to Team</button></nav><section className="hero compact-hero"><p className="eyebrow">Single-player route</p><h1>Tournament</h1><p>Defeat each rival to unlock the next arena.</p></section><section className="tournament-grid">{tournamentStages.map((stage, index) => { const unlocked = index <= tournamentProgress; const cleared = index < tournamentProgress; return <article key={stage.id} className={`stage-card ${!unlocked ? 'locked' : ''}`}><span className="stage-number">{index + 1}</span><h2>{stage.name}</h2><p>{stage.subtitle}</p><div className="stage-team">{stage.team.map((id) => <span key={id} title={cardById[id].name}><CardAvatar card={cardById[id]} /></span>)}</div><small>Opponent: {stage.opponent} · Reward: {stage.reward}</small><button disabled={!unlocked} onClick={() => startTournamentStage(index)}>{cleared ? 'Replay Stage' : unlocked ? 'Fight' : 'Locked'}</button></article>; })}</section></main>;
 
   if (screen === 'result') {
     const tournamentWin = battleWinner === 'player' && battleMode === 'tournament';

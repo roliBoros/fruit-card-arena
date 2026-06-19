@@ -1,1 +1,1 @@
-Next: produce and approve the remaining individual artwork assets, then replace the emoji fallbacks.
+Next: review the complete in-game artwork set at desktop and mobile sizes, then tune any character-specific crops requested by the owner.
