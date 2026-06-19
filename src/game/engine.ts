@@ -1,4 +1,4 @@
-import { cardById } from '../data/cards';
+import { cardById } from '../data/registry';
 import type { FighterState, FruitCard } from '../types';
 
 export type BattleAction = 'attack' | 'guard' | 'special' | 'bonus';
@@ -56,10 +56,7 @@ function normalDamage(attacker: FighterState, defender: FighterState, bonus = 0)
   const weakened = attacker.weakened;
   attacker.weakened = 0;
 
-  return Math.max(
-    8,
-    attackCard.battle.attack + roll + bonus - Math.floor(defendCard.battle.defence * 0.55) - weakened,
-  );
+  return Math.max(8, attackCard.battle.attack + roll + bonus - Math.floor(defendCard.battle.defence * 0.55) - weakened);
 }
 
 function resolveSpecial(attacker: FighterState, target: FighterState, opposingTeam: FighterState[]) {
@@ -132,18 +129,12 @@ function resolveSpecial(attacker: FighterState, target: FighterState, opposingTe
 export function chooseEnemyAction(fighter: FighterState): Exclude<BattleAction, 'bonus'> {
   const card = cardById[fighter.cardId];
   const hpRatio = fighter.hp / card.battle.maxHp;
-
   if (!fighter.specialUsed && (hpRatio < 0.55 || Math.random() < 0.42)) return 'special';
   if (hpRatio < 0.35 && Math.random() < 0.35) return 'guard';
   return 'attack';
 }
 
-export function resolveTurn(
-  playerTeam: FighterState[],
-  enemyTeam: FighterState[],
-  action: BattleAction,
-  currentBonusUsed: boolean,
-): TurnResult {
+export function resolveTurn(playerTeam: FighterState[], enemyTeam: FighterState[], action: BattleAction, currentBonusUsed: boolean): TurnResult {
   const players = playerTeam.map((fighter) => ({ ...fighter }));
   const enemies = enemyTeam.map((fighter) => ({ ...fighter }));
   const pIndex = livingIndex(players);
@@ -166,7 +157,6 @@ export function resolveTurn(
   const enemy = enemies[eIndex];
   const playerCard = cardById[player.cardId];
   const enemyCard = cardById[enemy.cardId];
-
   let playerText = '';
   let enemyText = '';
   let playerEffect: BattleEffect = null;
@@ -180,17 +170,13 @@ export function resolveTurn(
   } else if (action === 'special') {
     const result = resolveSpecial(player, enemy, enemies);
     playerText = `${playerCard.name} used ${result.note}.`;
-    playerEffect = result.healed > 0 && result.totalDamage === 0
-      ? { type: 'heal', amount: result.healed }
-      : { type: 'special', amount: result.totalDamage || result.healed };
+    playerEffect = result.healed > 0 && result.totalDamage === 0 ? { type: 'heal', amount: result.healed } : { type: 'special', amount: result.totalDamage || result.healed };
     if (result.totalDamage > 0) enemyEffect = { type: 'hit', amount: result.totalDamage };
   } else {
     const bonus = action === 'bonus' ? 20 : 0;
     const result = applyDamage(enemy, normalDamage(player, enemy, bonus));
     bonusUsed = bonusUsed || action === 'bonus';
-    playerText = result.missed
-      ? `${enemyCard.name} dodged the attack.`
-      : `${playerCard.name} dealt ${result.damage}${bonus ? ' boosted' : ''} damage.`;
+    playerText = result.missed ? `${enemyCard.name} dodged the attack.` : `${playerCard.name} dealt ${result.damage}${bonus ? ' boosted' : ''} damage.`;
     enemyEffect = result.missed ? { type: 'miss' } : { type: 'hit', amount: result.damage };
   }
 
@@ -205,15 +191,11 @@ export function resolveTurn(
     } else if (enemyAction === 'special') {
       const result = resolveSpecial(enemy, player, players);
       enemyText = `${enemyCard.name} used ${result.note}.`;
-      enemyEffect = result.healed > 0 && result.totalDamage === 0
-        ? { type: 'heal', amount: result.healed }
-        : { type: 'special', amount: result.totalDamage || result.healed };
+      enemyEffect = result.healed > 0 && result.totalDamage === 0 ? { type: 'heal', amount: result.healed } : { type: 'special', amount: result.totalDamage || result.healed };
       if (result.totalDamage > 0) playerEffect = { type: 'hit', amount: result.totalDamage };
     } else {
       const result = applyDamage(player, normalDamage(enemy, player));
-      enemyText = result.missed
-        ? `${playerCard.name} dodged the counterattack.`
-        : `${enemyCard.name} countered for ${result.damage}.`;
+      enemyText = result.missed ? `${playerCard.name} dodged the counterattack.` : `${enemyCard.name} countered for ${result.damage}.`;
       playerEffect = result.missed ? { type: 'miss' } : { type: 'hit', amount: result.damage };
     }
   }
