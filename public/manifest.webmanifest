@@ -1,0 +1,19 @@
+{
+  "name": "Fruit Card Arena",
+  "short_name": "Fruit Arena",
+  "description": "A friendly three-card fruit battler. Build a squad, play exhibitions, and climb the tournament.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#07111f",
+  "theme_color": "#0a1c2c",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
