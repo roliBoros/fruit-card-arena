@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { cardById, cards } from './data/registry';
 import { tournamentStages } from './data/tournament';
 import { freshFighter, livingIndex, resolveTurn } from './game/engine';
@@ -10,9 +10,10 @@ import type { FighterState, FruitCard } from './types';
 type Screen = 'login' | 'team' | 'tournament' | 'battle' | 'result';
 type BattleMode = 'exhibition' | 'tournament';
 type BattleWinner = 'player' | 'enemy' | null;
-type PlayerRecord = { wins: number; losses: number; battles: number; arenaPoints: number };
+type MatchHistoryEntry = { id: string; result: Exclude<BattleWinner, null>; mode: BattleMode; opponent: string; points: number; playedAt: string };
+type PlayerRecord = { wins: number; losses: number; battles: number; arenaPoints: number; history: MatchHistoryEntry[] };
 
-const emptyRecord: PlayerRecord = { wins: 0, losses: 0, battles: 0, arenaPoints: 0 };
+const emptyRecord: PlayerRecord = { wins: 0, losses: 0, battles: 0, arenaPoints: 0, history: [] };
 
 function readRecord(): PlayerRecord {
   try {
@@ -22,6 +23,7 @@ function readRecord(): PlayerRecord {
       losses: Number(saved.losses) || 0,
       battles: Number(saved.battles) || 0,
       arenaPoints: Number(saved.arenaPoints) || 0,
+      history: Array.isArray(saved.history) ? saved.history.slice(0, 20) : [],
     };
   } catch {
     return emptyRecord;
@@ -87,6 +89,10 @@ function Tutorial({ onClose }: { onClose: () => void }) {
   return <div className="tutorial-backdrop" role="dialog" aria-modal="true" aria-labelledby="tutorial-title"><section className="tutorial-panel"><p className="eyebrow">Quick start</p><h2 id="tutorial-title">How to play</h2><div className="tutorial-steps"><article><b>1</b><h3>Pick a balanced team</h3><p>Choose exactly three cards. When one is defeated, the next steps in automatically.</p></article><article><b>2</b><h3>Choose each move</h3><p>Attack deals damage. Guard halves the next hit. Each fighter gets one Special.</p></article><article><b>3</b><h3>Time your Bonus</h3><p>Your +20 Bonus powers up one attack per battle. Save it for the right moment.</p></article><article><b>4</b><h3>Claim the crown</h3><p>Defeat all three rival cards. Tournament first clears unlock stages and award points.</p></article></div><button onClick={onClose}>Ready to battle</button></section></div>;
 }
 
+function MatchHistory({ entries, onClose }: { entries: MatchHistoryEntry[]; onClose: () => void }) {
+  return <div className="focus-backdrop" role="dialog" aria-modal="true" aria-labelledby="history-title"><section className="history-modal"><button className="modal-close" onClick={onClose} aria-label="Close match history">×</button><p className="eyebrow">Recent battles</p><h2 id="history-title">Match History</h2>{entries.length === 0 ? <p className="history-empty">Complete a battle and its result will appear here.</p> : <ol>{entries.map((entry) => <li key={entry.id}><span className={`history-result ${entry.result}`}>{entry.result === 'player' ? 'Win' : 'Loss'}</span><div><strong>{entry.opponent}</strong><small>{entry.mode === 'tournament' ? 'Tournament' : 'Exhibition'} · {new Date(entry.playedAt).toLocaleDateString()}</small></div>{entry.points > 0 && <b>+{entry.points}</b>}</li>)}</ol>}</section></div>;
+}
+
 export default function App() {
   const storedName = localStorage.getItem('fca-username') ?? '';
   const storedProgress = Number(localStorage.getItem('fca-tournament-progress') ?? '0');
@@ -115,6 +121,31 @@ export default function App() {
   const [rosterIndex, setRosterIndex] = useState(0);
   const [routeFocus, setRouteFocus] = useState(Math.min(storedProgress, tournamentStages.length - 1));
   const [inspectedCardId, setInspectedCardId] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+
+  useEffect(() => {
+    let startX: number | null = null;
+    let target: 'roster' | 'route' | null = null;
+    const begin = (event: TouchEvent) => {
+      const element = event.target instanceof Element ? event.target : null;
+      target = element?.closest('.card-gallery') ? 'roster' : element?.closest('.tournament-grid') ? 'route' : null;
+      startX = target ? event.touches[0].clientX : null;
+    };
+    const finish = (event: TouchEvent) => {
+      if (startX === null || !target) return;
+      const distance = event.changedTouches[0].clientX - startX;
+      const direction = distance < 0 ? 1 : -1;
+      if (Math.abs(distance) >= 45) target === 'roster' ? moveRoster(direction) : moveRoute(direction);
+      startX = null;
+      target = null;
+    };
+    document.addEventListener('touchstart', begin, { passive: true });
+    document.addEventListener('touchend', finish, { passive: true });
+    return () => {
+      document.removeEventListener('touchstart', begin);
+      document.removeEventListener('touchend', finish);
+    };
+  }, [screen]);
 
   function toggleMute() {
     const next = !muted;
@@ -143,11 +174,20 @@ export default function App() {
 
   function saveResult(result: Exclude<BattleWinner, null>, points: number) {
     setRecord((current) => {
+      const entry: MatchHistoryEntry = {
+        id: `${Date.now()}-${current.battles + 1}`,
+        result,
+        mode: battleMode,
+        opponent: battleMode === 'tournament' ? currentStage.opponent : 'Arena Rival',
+        points,
+        playedAt: new Date().toISOString(),
+      };
       const next = {
         wins: current.wins + (result === 'player' ? 1 : 0),
         losses: current.losses + (result === 'enemy' ? 1 : 0),
         battles: current.battles + 1,
         arenaPoints: current.arenaPoints + points,
+        history: [entry, ...current.history].slice(0, 20),
       };
       localStorage.setItem('fca-record', JSON.stringify(next));
       return next;
@@ -200,7 +240,7 @@ export default function App() {
 
   if (screen === 'login') return <main key="login" className="login-screen screen-anim"><section className="login-panel"><p className="eyebrow">Welcome to</p><h1>Fruit Card <span>Arena</span></h1><p>Enter a simple player name. No email or password is required.</p><form onSubmit={enterArena}><input value={draftName} onChange={(event) => setDraftName(event.target.value)} maxLength={18} placeholder="Player name" autoFocus /><button type="submit">Enter Arena</button></form><small>Progress is stored only in this browser.</small></section></main>;
 
-  if (screen === 'team') return <><main key="team" className="app-shell team-screen screen-anim"><nav><b>FRUIT CARD ARENA</b><div className="nav-actions"><SoundToggle muted={muted} onToggle={toggleMute} /><button className="nav-button" onClick={() => setShowTutorial(true)}>How to Play</button><span className="player-name">Player: {username}</span></div></nav><section className="hero compact-hero"><p className="eyebrow">Build your squad</p><h1>Choose Three</h1></section><section className="player-dashboard" aria-label="Player record"><span><b>{record.wins}</b> Wins</span><span><b>{record.losses}</b> Losses</span><span><b>{record.battles}</b> Battles</span><span><b>{record.arenaPoints}</b> Points</span></section><section className="team-toolbar"><div className="difficulty-picker"><strong>Rival</strong>{(['easy', 'normal', 'hard'] as Difficulty[]).map((level) => <button key={level} className={difficulty === level ? 'active' : ''} onClick={() => changeDifficulty(level)}>{level}</button>)}</div><div className="selection-bar"><strong>{selectedIds.length}/3 selected</strong><div className="actions"><button onClick={startExhibition} disabled={selectedIds.length !== 3}>Exhibition</button><button className="bonus" onClick={() => { setRouteFocus(Math.min(tournamentProgress, tournamentStages.length - 1)); setScreen('tournament'); }} disabled={selectedIds.length !== 3}>Tournament</button></div></div></section><section className="roster-browser" aria-label="Character selection"><button className="gallery-arrow previous" onClick={() => moveRoster(-1)} disabled={rosterIndex === 0} aria-label="Previous character">‹</button><div className="card-gallery">{rosterSlots.map((card, slot) => <div className={`carousel-item ${slot === 1 ? 'focused' : 'side'}`} key={card?.id ?? `empty-${slot}`}>{card ? <Card card={card} selected={selectedIds.includes(card.id)} onClick={() => toggleCard(card.id)} /> : null}</div>)}</div><button className="gallery-arrow next" onClick={() => moveRoster(1)} disabled={rosterIndex === availableCards.length - 1} aria-label="Next character">›</button><div className="gallery-counter"><strong>{availableCards[rosterIndex].name}</strong><span>{rosterIndex + 1} / {availableCards.length}</span></div></section></main>{showTutorial && <Tutorial onClose={dismissTutorial} />}</>;
+  if (screen === 'team') return <><main key="team" className="app-shell team-screen screen-anim"><nav><b>FRUIT CARD ARENA</b><div className="nav-actions"><SoundToggle muted={muted} onToggle={toggleMute} /><button className="nav-button" onClick={() => setShowTutorial(true)}>How to Play</button><button className="nav-button" onClick={() => setShowHistory(true)}>History</button><span className="player-name">Player: {username}</span></div></nav><section className="hero compact-hero"><p className="eyebrow">Build your squad</p><h1>Choose Three</h1></section><section className="player-dashboard" aria-label="Player record"><span><b>{record.wins}</b> Wins</span><span><b>{record.losses}</b> Losses</span><span><b>{record.battles}</b> Battles</span><span><b>{record.arenaPoints}</b> Points</span></section><section className="team-toolbar"><div className="difficulty-picker"><strong>Rival</strong>{(['easy', 'normal', 'hard'] as Difficulty[]).map((level) => <button key={level} className={difficulty === level ? 'active' : ''} onClick={() => changeDifficulty(level)}>{level}</button>)}</div><div className="selection-bar"><strong>{selectedIds.length}/3 selected</strong><div className="actions"><button onClick={startExhibition} disabled={selectedIds.length !== 3}>Exhibition</button><button className="bonus" onClick={() => { setRouteFocus(Math.min(tournamentProgress, tournamentStages.length - 1)); setScreen('tournament'); }} disabled={selectedIds.length !== 3}>Tournament</button></div></div></section><section className="roster-browser" aria-label="Character selection"><button className="gallery-arrow previous" onClick={() => moveRoster(-1)} disabled={rosterIndex === 0} aria-label="Previous character">‹</button><div className="card-gallery">{rosterSlots.map((card, slot) => <div className={`carousel-item ${slot === 1 ? 'focused' : 'side'}`} key={card?.id ?? `empty-${slot}`}>{card ? <Card card={card} selected={selectedIds.includes(card.id)} onClick={() => toggleCard(card.id)} /> : null}</div>)}</div><button className="gallery-arrow next" onClick={() => moveRoster(1)} disabled={rosterIndex === availableCards.length - 1} aria-label="Next character">›</button><div className="gallery-counter"><strong>{availableCards[rosterIndex].name}</strong><span>{rosterIndex + 1} / {availableCards.length}</span></div></section></main>{showTutorial && <Tutorial onClose={dismissTutorial} />}{showHistory && <MatchHistory entries={record.history} onClose={() => setShowHistory(false)} />}</>;
 
   if (screen === 'tournament') return <main key="tournament" className="app-shell tournament-screen viewport-screen screen-anim"><nav><b>FRUIT CARD ARENA</b><div className="nav-actions"><SoundToggle muted={muted} onToggle={toggleMute} /><button className="nav-button" onClick={() => setScreen('team')}>Back to Team</button></div></nav><section className="hero compact-hero"><p className="eyebrow">Single-player route</p><h1>Tournament</h1><p>Defeat each rival to unlock the next arena.</p></section><section className="route-browser"><button className="gallery-arrow previous route-arrow" onClick={() => moveRoute(-1)} disabled={routeFocus === 0} aria-label="Previous stage">‹</button><div className="tournament-grid">{tournamentStages.map((stage, index) => { const unlocked = index <= tournamentProgress; const cleared = index < tournamentProgress; return <article key={stage.id} className={`stage-card ${!unlocked ? 'locked' : ''} ${index === routeFocus ? 'focused' : ''}`}><span className="stage-number">{index + 1}</span><h2>{stage.name}</h2><p>{stage.subtitle}</p><div className="stage-team">{stage.team.map((id) => <span key={id} title={cardById[id].name}><CardAvatar card={cardById[id]} /></span>)}</div><small>Opponent: {stage.opponent} · Reward: {stage.reward}</small><button disabled={!unlocked} onClick={() => startTournamentStage(index)}>{cleared ? 'Replay Stage' : unlocked ? 'Fight' : 'Locked'}</button></article>; })}</div><button className="gallery-arrow next route-arrow" onClick={() => moveRoute(1)} disabled={routeFocus === tournamentStages.length - 1} aria-label="Next stage">›</button><div className="gallery-counter route-counter"><strong>{tournamentStages[routeFocus].name}</strong><span>{routeFocus + 1} / {tournamentStages.length}</span></div></section></main>;
 

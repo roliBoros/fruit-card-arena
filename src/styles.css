@@ -55,7 +55,8 @@ nav b { color: #a8d63e; }
 .team-screen .selection-bar { padding: 8px 12px; }
 
 .roster-browser { position: relative; flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 50px minmax(0, 1fr) 50px; grid-template-rows: minmax(0, 1fr) 24px; align-items: center; gap: 6px 12px; padding: 2px 0 8px; }
-.card-gallery { grid-column: 2; grid-row: 1; height: 100%; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); justify-items: center; gap: 16px; }
+.card-gallery { grid-column: 2; grid-row: 1; height: 100%; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); justify-items: center; gap: 16px; touch-action: pan-y; }
+.card-gallery::before { display: none; }
 .carousel-item { width: min(100%, 280px); min-height: 0; display: flex; }
 .carousel-item:empty { visibility: hidden; }
 .card-gallery .fruit-card { width: 100%; height: 100%; min-height: 0; display: flex; flex-direction: column; transform: none; }
@@ -92,7 +93,7 @@ nav b { color: #a8d63e; }
 .tournament-screen .hero h1 { font-size: clamp(2rem, 5vw, 3.5rem); }
 .tournament-screen .hero p { margin-block: 8px; }
 .route-browser { position: relative; flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr); align-items: center; padding-bottom: 10px; }
-.tournament-grid { height: 100%; min-height: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; align-items: stretch; }
+.tournament-grid { height: 100%; min-height: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; align-items: stretch; touch-action: pan-y; }
 .stage-card { position: relative; display: flex; flex-direction: column; gap: 9px; min-height: 0; padding: 18px; border: 1px solid #365772; border-radius: 22px; background: linear-gradient(180deg, rgba(20, 50, 73, .96), rgba(8, 23, 37, .96)); box-shadow: 0 18px 42px rgba(0,0,0,.28); }
 .stage-card h2 { margin: 14px 0 0; color: #f5d45e; }
 .stage-card p { margin: 0; color: #b9c9d6; line-height: 1.45; }
@@ -188,6 +189,16 @@ nav b { color: #a8d63e; }
 .card-modal { position: relative; width: min(320px, 88vw); max-height: calc(100dvh - 32px); display: grid; place-items: center; }
 .card-modal .fruit-card { max-height: calc(100dvh - 32px); }
 .modal-close { position: absolute; z-index: 2; top: -10px; right: -10px; display: grid; place-items: center; width: 38px; height: 38px; border: 2px solid #7993a7; border-radius: 50%; color: white; background: #19334a; font-size: 1.6rem; line-height: 1; }
+.history-modal { position: relative; width: min(540px, 92vw); max-height: calc(100dvh - 32px); overflow: hidden; padding: 28px; border: 1px solid #496a84; border-radius: 24px; background: #0a1c2c; box-shadow: 0 30px 90px rgba(0,0,0,.6); }
+.history-modal h2 { margin: 4px 0 18px; color: #a8d63e; font-size: clamp(1.8rem, 5vw, 2.6rem); text-transform: uppercase; }
+.history-modal ol { max-height: min(50dvh, 390px); display: grid; gap: 8px; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
+.history-modal li { display: grid; grid-template-columns: 58px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 11px 12px; border: 1px solid #294960; border-radius: 13px; background: #10283b; }
+.history-modal li div { min-width: 0; display: grid; gap: 3px; }
+.history-modal li strong, .history-modal li small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-modal li small, .history-empty { color: #a9bccb; }
+.history-modal li > b { color: #f5d45e; }
+.history-result { padding: 5px 8px; border-radius: 999px; text-align: center; color: #07111f; background: #e36c75; font-size: .7rem; font-weight: 900; text-transform: uppercase; }
+.history-result.player { background: #a8d63e; }
 
 .result-screen { position: relative; overflow: hidden; }
 .confetti-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
@@ -220,6 +231,7 @@ nav b { color: #a8d63e; }
   .team-screen .selection-bar button { padding: 9px 10px; }
   .roster-browser { grid-template-columns: 42px minmax(0, 1fr) 42px; gap: 4px 7px; }
   .card-gallery { grid-template-columns: 1fr; }
+  .card-gallery::before { content: 'Swipe to browse'; position: absolute; top: 2px; left: 50%; display: block; transform: translateX(-50%); color: #8298a9; font-size: .58rem; letter-spacing: .06em; text-transform: uppercase; }
   .carousel-item.side { display: none; }
   .carousel-item.focused { width: min(100%, 290px); justify-self: center; }
   .card-gallery .fruit-card footer { min-height: 48px; font-size: .8rem; }
@@ -232,6 +244,9 @@ nav b { color: #a8d63e; }
   .tutorial-steps article > b { top: 10px; left: 8px; width: 24px; height: 24px; }
   .tutorial-steps h3 { font-size: .82rem; }
   .tutorial-steps p { font-size: .69rem; line-height: 1.3; }
+  .history-modal { padding: 20px 14px; }
+  .history-modal h2 { margin-bottom: 12px; }
+  .history-modal li { grid-template-columns: 52px minmax(0, 1fr) auto; gap: 8px; padding: 9px 8px; }
   .tournament-screen .hero { padding: 0 0 3px; }
   .tournament-screen .hero h1 { font-size: 1.8rem; }
   .tournament-screen .hero p:last-child { display: none; }
