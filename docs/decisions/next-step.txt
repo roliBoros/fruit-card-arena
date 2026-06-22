@@ -1,1 +1,1 @@
-Next: verify v0.5 battle recaps on desktop and mobile, then publish the release after CI passes.
+Next: review v0.5 battle recaps on a physical mobile device, then choose the first v0.6 feature.
