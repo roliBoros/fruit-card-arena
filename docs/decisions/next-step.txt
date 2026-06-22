@@ -1,1 +1,1 @@
-Next: review match history and swipe navigation on the deployed mobile build, then choose the next v0.5 feature.
+Next: verify v0.5 battle recaps on desktop and mobile, then publish the release after CI passes.
