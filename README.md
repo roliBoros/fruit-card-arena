@@ -18,6 +18,7 @@ The approved visual direction targets players aged **10+**: energetic, competiti
 ## Prototype goals
 
 - Username-only guest profile; no password or email
+- Local player profile with rename, tutorial replay and confirmed progress reset
 - Choose a team of three cards
 - Fight a computer-controlled opponent
 - Attack, Guard and Special actions

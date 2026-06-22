@@ -96,12 +96,17 @@ test('returning player can start an exhibition from saved state', async ({ page 
   await roster.dispatchEvent('touchend', { changedTouches: [{ identifier: 0, clientX: 160, clientY: 300 }] });
   await expect(page.locator('.gallery-counter strong')).toHaveText('Peachy');
 
-  await page.getByRole('button', { name: 'History' }).click();
-  await expect(page.getByRole('dialog', { name: 'Match History' })).toBeVisible();
+  await page.getByRole('button', { name: 'Player profile for Returning Player' }).click();
+  await expect(page.getByRole('dialog', { name: 'Player Profile' })).toBeVisible();
   await expect(page.getByText('Garden Rookie')).toBeVisible();
   await expect(page.getByText(/hard rival · 7 turns/)).toBeVisible();
   await expectViewportFit(page);
-  await page.getByRole('button', { name: 'Close match history' }).click();
+  await page.getByLabel('Player name').fill('Updated Player');
+  await page.getByRole('button', { name: 'Save Name' }).click();
+  await expect(page.evaluate(() => localStorage.getItem('fca-username'))).resolves.toBe('Updated Player');
+  await page.getByRole('button', { name: 'Replay Tutorial' }).click();
+  await expect(page.getByRole('dialog', { name: 'How to play' })).toBeVisible();
+  await page.getByRole('button', { name: 'Ready to battle' }).click();
 
   await page.getByRole('button', { name: 'hard' }).click();
   await page.getByRole('button', { name: 'Exhibition' }).click();
@@ -113,4 +118,29 @@ test('returning player can start an exhibition from saved state', async ({ page 
   await page.getByRole('button', { name: 'Close card details' }).click();
   await page.getByRole('button', { name: /Attack/ }).click();
   await expect(page.getByText(/dealt|dodged/)).toBeVisible();
+});
+
+test('player can reset saved progress without losing their name', async ({ page }) => {
+  await page.addInitScript((team) => {
+    localStorage.setItem('fca-username', 'Reset Player');
+    localStorage.setItem('fca-tutorial-seen', 'yes');
+    localStorage.setItem('fca-team', JSON.stringify(team));
+    localStorage.setItem('fca-tournament-progress', '3');
+    localStorage.setItem('fca-record', JSON.stringify({ wins: 4, losses: 2, battles: 6, arenaPoints: 475, history: [] }));
+  }, selectedTeam);
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Player profile for Reset Player' }).click();
+  await expect(page.getByRole('dialog', { name: 'Player Profile' })).toBeVisible();
+  await page.getByRole('button', { name: 'Reset Progress' }).click();
+  await expect(page.getByRole('button', { name: 'Confirm Reset' })).toBeVisible();
+  await page.getByRole('button', { name: 'Confirm Reset' }).click();
+
+  await expect(page.getByRole('dialog', { name: 'Player Profile' })).toBeHidden();
+  await expect(page.getByText('0/3 selected')).toBeVisible();
+  await expect(page.evaluate(() => localStorage.getItem('fca-username'))).resolves.toBe('Reset Player');
+  await expect(page.evaluate(() => localStorage.getItem('fca-record'))).resolves.toBeNull();
+  await expect(page.evaluate(() => localStorage.getItem('fca-team'))).resolves.toBeNull();
+  await expect(page.evaluate(() => localStorage.getItem('fca-tournament-progress'))).resolves.toBeNull();
+  await expectViewportFit(page);
 });

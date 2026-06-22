@@ -1,1 +1,1 @@
-Next: review v0.5 battle recaps on a physical mobile device, then choose the first v0.6 feature.
+Next: verify v0.6 profile management across desktop and mobile, then publish after CI passes.

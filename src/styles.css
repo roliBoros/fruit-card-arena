@@ -31,6 +31,7 @@ nav { display: flex; justify-content: space-between; align-items: center; paddin
 nav b { color: #a8d63e; }
 .nav-button { border: 1px solid #3a5871; border-radius: 10px; padding: 9px 13px; color: white; background: #142a3c; }
 .nav-actions { display: flex; align-items: center; gap: 14px; }
+.profile-compact { display: none; }
 .hero { padding: 48px 0 30px; text-align: center; }
 .compact-hero { padding-bottom: 16px; }
 .battle-hero { padding: 25px 0 15px; }
@@ -203,6 +204,18 @@ nav b { color: #a8d63e; }
 .history-teams > i { color: #8298a9; font-size: .58rem; font-style: normal; font-weight: 900; }
 .history-team { display: flex; gap: 3px; }
 .history-team > span { width: 24px; height: 24px; overflow: hidden; border: 1px solid #3a5b72; border-radius: 7px; background: #0a1c2c; }
+.profile-modal { width: min(600px, 92vw); }
+.profile-modal h3 { margin: 18px 0 10px; color: #f5d45e; text-transform: uppercase; }
+.profile-modal ol { max-height: min(28dvh, 230px); }
+.profile-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; margin-bottom: 10px; }
+.profile-form label { grid-column: 1 / -1; color: #a9bccb; font-size: .72rem; font-weight: 800; text-transform: uppercase; }
+.profile-form input { min-width: 0; padding: 10px 12px; border: 1px solid #54708b; border-radius: 10px; color: white; background: #0c1a29; }
+.profile-form button, .profile-tools button { border: 0; border-radius: 10px; padding: 10px 13px; color: #07111f; background: #a8d63e; font-weight: 900; }
+.profile-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.profile-stats span { display: grid; padding: 8px; border: 1px solid #294960; border-radius: 10px; color: #a9bccb; text-align: center; font-size: .68rem; text-transform: uppercase; }
+.profile-stats b { color: #f5d45e; font-size: 1rem; }
+.profile-tools { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.profile-tools .danger { color: white; background: #b93d4d; }
 .result-summary { color: #f5d45e; font-weight: 800; text-transform: capitalize; }
 
 .result-screen { position: relative; overflow: hidden; }
@@ -225,6 +238,8 @@ nav b { color: #a8d63e; }
   nav { align-items: center; gap: 12px; font-size: .82rem; }
   .nav-actions { gap: 8px; }
   .player-name { display: none; }
+  .profile-wide { display: none; }
+  .profile-compact { display: inline; }
   .team-screen { gap: 5px; }
   .team-screen nav { padding: 7px 0; }
   .team-screen .hero h1 { font-size: 1.45rem; }
@@ -252,6 +267,8 @@ nav b { color: #a8d63e; }
   .history-modal { padding: 20px 14px; }
   .history-modal h2 { margin-bottom: 12px; }
   .history-modal li { grid-template-columns: 52px minmax(0, 1fr) auto; gap: 8px; padding: 9px 8px; }
+  .profile-modal h3 { margin: 12px 0 7px; }
+  .profile-modal ol { max-height: 24dvh; }
   .tournament-screen .hero { padding: 0 0 3px; }
   .tournament-screen .hero h1 { font-size: 1.8rem; }
   .tournament-screen .hero p:last-child { display: none; }
