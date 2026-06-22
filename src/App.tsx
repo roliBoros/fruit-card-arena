@@ -10,7 +10,18 @@ import type { FighterState, FruitCard } from './types';
 type Screen = 'login' | 'team' | 'tournament' | 'battle' | 'result';
 type BattleMode = 'exhibition' | 'tournament';
 type BattleWinner = 'player' | 'enemy' | null;
-type MatchHistoryEntry = { id: string; result: Exclude<BattleWinner, null>; mode: BattleMode; opponent: string; points: number; playedAt: string };
+type MatchHistoryEntry = {
+  id: string;
+  result: Exclude<BattleWinner, null>;
+  mode: BattleMode;
+  opponent: string;
+  points: number;
+  playedAt: string;
+  difficulty?: Difficulty;
+  turns?: number;
+  playerTeam?: string[];
+  enemyTeam?: string[];
+};
 type PlayerRecord = { wins: number; losses: number; battles: number; arenaPoints: number; history: MatchHistoryEntry[] };
 
 const emptyRecord: PlayerRecord = { wins: 0, losses: 0, battles: 0, arenaPoints: 0, history: [] };
@@ -89,8 +100,12 @@ function Tutorial({ onClose }: { onClose: () => void }) {
   return <div className="tutorial-backdrop" role="dialog" aria-modal="true" aria-labelledby="tutorial-title"><section className="tutorial-panel"><p className="eyebrow">Quick start</p><h2 id="tutorial-title">How to play</h2><div className="tutorial-steps"><article><b>1</b><h3>Pick a balanced team</h3><p>Choose exactly three cards. When one is defeated, the next steps in automatically.</p></article><article><b>2</b><h3>Choose each move</h3><p>Attack deals damage. Guard halves the next hit. Each fighter gets one Special.</p></article><article><b>3</b><h3>Time your Bonus</h3><p>Your +20 Bonus powers up one attack per battle. Save it for the right moment.</p></article><article><b>4</b><h3>Claim the crown</h3><p>Defeat all three rival cards. Tournament first clears unlock stages and award points.</p></article></div><button onClick={onClose}>Ready to battle</button></section></div>;
 }
 
+function HistoryTeam({ ids = [] }: { ids?: string[] }) {
+  return <span className="history-team">{ids.filter((id) => cardById[id]).map((id) => <span key={id} title={cardById[id].name}><CardAvatar card={cardById[id]} /></span>)}</span>;
+}
+
 function MatchHistory({ entries, onClose }: { entries: MatchHistoryEntry[]; onClose: () => void }) {
-  return <div className="focus-backdrop" role="dialog" aria-modal="true" aria-labelledby="history-title"><section className="history-modal"><button className="modal-close" onClick={onClose} aria-label="Close match history">×</button><p className="eyebrow">Recent battles</p><h2 id="history-title">Match History</h2>{entries.length === 0 ? <p className="history-empty">Complete a battle and its result will appear here.</p> : <ol>{entries.map((entry) => <li key={entry.id}><span className={`history-result ${entry.result}`}>{entry.result === 'player' ? 'Win' : 'Loss'}</span><div><strong>{entry.opponent}</strong><small>{entry.mode === 'tournament' ? 'Tournament' : 'Exhibition'} · {new Date(entry.playedAt).toLocaleDateString()}</small></div>{entry.points > 0 && <b>+{entry.points}</b>}</li>)}</ol>}</section></div>;
+  return <div className="focus-backdrop" role="dialog" aria-modal="true" aria-labelledby="history-title"><section className="history-modal"><button className="modal-close" onClick={onClose} aria-label="Close match history">×</button><p className="eyebrow">Recent battles</p><h2 id="history-title">Match History</h2>{entries.length === 0 ? <p className="history-empty">Complete a battle and its result will appear here.</p> : <ol>{entries.map((entry) => <li key={entry.id}><span className={`history-result ${entry.result}`}>{entry.result === 'player' ? 'Win' : 'Loss'}</span><div className="history-details"><strong>{entry.opponent}</strong><small>{[entry.mode === 'tournament' ? 'Tournament' : 'Exhibition', entry.difficulty && `${entry.difficulty} rival`, entry.turns && `${entry.turns} turns`, new Date(entry.playedAt).toLocaleDateString()].filter(Boolean).join(' · ')}</small>{entry.playerTeam?.length && entry.enemyTeam?.length ? <span className="history-teams"><HistoryTeam ids={entry.playerTeam} /><i>VS</i><HistoryTeam ids={entry.enemyTeam} /></span> : null}</div>{entry.points > 0 && <b>+{entry.points}</b>}</li>)}</ol>}</section></div>;
 }
 
 export default function App() {
@@ -122,6 +137,7 @@ export default function App() {
   const [routeFocus, setRouteFocus] = useState(Math.min(storedProgress, tournamentStages.length - 1));
   const [inspectedCardId, setInspectedCardId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [turnCount, setTurnCount] = useState(0);
 
   useEffect(() => {
     let startX: number | null = null;
@@ -172,7 +188,7 @@ export default function App() {
   function moveRoster(direction: -1 | 1) { sfx('click'); setRosterIndex((current) => clamp(current + direction, 0, availableCards.length - 1)); }
   function moveRoute(direction: -1 | 1) { sfx('click'); setRouteFocus((current) => clamp(current + direction, 0, tournamentStages.length - 1)); }
 
-  function saveResult(result: Exclude<BattleWinner, null>, points: number) {
+  function saveResult(result: Exclude<BattleWinner, null>, points: number, turns: number) {
     setRecord((current) => {
       const entry: MatchHistoryEntry = {
         id: `${Date.now()}-${current.battles + 1}`,
@@ -181,6 +197,10 @@ export default function App() {
         opponent: battleMode === 'tournament' ? currentStage.opponent : 'Arena Rival',
         points,
         playedAt: new Date().toISOString(),
+        difficulty,
+        turns,
+        playerTeam: playerTeam.map((fighter) => fighter.cardId),
+        enemyTeam: enemyTeam.map((fighter) => fighter.cardId),
       };
       const next = {
         wins: current.wins + (result === 'player' ? 1 : 0),
@@ -199,7 +219,7 @@ export default function App() {
     localStorage.setItem('fca-team', JSON.stringify(selectedIds));
     setPlayerTeam(selectedIds.map((id) => freshFighter(cardById[id])));
     setEnemyTeam(enemyIds.map((id) => freshFighter(cardById[id])));
-    setBattleMode(mode); setStageIndex(index); setBonusUsed(false); setBattleWinner(null); setRewardEarned(0); setPlayerEffect(null); setEnemyEffect(null);
+    setBattleMode(mode); setStageIndex(index); setBonusUsed(false); setBattleWinner(null); setRewardEarned(0); setTurnCount(0); setPlayerEffect(null); setEnemyEffect(null);
     setMessage('Battle ready. Choose Attack, Guard, Special or your one-use Bonus.'); setScreen('battle');
   }
 
@@ -214,6 +234,8 @@ export default function App() {
   function playTurn(action: BattleAction) {
     if (!playerActive || !enemyActive || battleWinner || (action === 'special' && playerActive.specialUsed) || (action === 'bonus' && bonusUsed)) return;
     primeAudio();
+    const completedTurns = turnCount + 1;
+    setTurnCount(completedTurns);
     const result = resolveTurn(playerTeam, enemyTeam, action, bonusUsed, difficulty);
     setPlayerTeam(result.players); setEnemyTeam(result.enemies); setPlayerEffect(result.playerEffect); setEnemyEffect(result.enemyEffect); setBonusUsed(result.bonusUsed); setMessage(`${result.playerText} ${result.enemyText}`.trim());
     // Sound for the player's chosen move, then a staggered impact for the outcome.
@@ -232,7 +254,7 @@ export default function App() {
         const nextProgress = Math.min(tournamentStages.length, Math.max(tournamentProgress, stageIndex + 1));
         setTournamentProgress(nextProgress); localStorage.setItem('fca-tournament-progress', String(nextProgress));
       }
-      saveResult(result.winner, points);
+      saveResult(result.winner, points, completedTurns);
       window.setTimeout(() => sfx(result.winner === 'player' ? 'victory' : 'defeat'), 420);
       setScreen('result');
     }
@@ -248,7 +270,7 @@ export default function App() {
     const tournamentWin = battleWinner === 'player' && battleMode === 'tournament';
     const hasNext = stageIndex + 1 < tournamentStages.length;
     const winnerName = battleWinner === 'player' ? username : battleMode === 'tournament' ? currentStage.opponent : 'Arena Rival';
-    return <main key="result" className="login-screen result-screen screen-anim">{battleWinner === 'player' && <Confetti />}<section className="login-panel"><p className="eyebrow">Battle complete</p><h1>{battleWinner === 'player' ? 'Victory!' : 'Defeat'}</h1><p>{winnerName} won the match.</p>{tournamentWin && rewardEarned > 0 && <p>You earned {rewardEarned} arena points.</p>}{tournamentWin && rewardEarned === 0 && <p>Stage cleared again. First-clear points were already claimed.</p>}<div className="result-actions">{tournamentWin && hasNext ? <button onClick={() => { setRouteFocus(stageIndex + 1); setScreen('tournament'); setStageIndex(stageIndex + 1); }}>Continue Route</button> : <button onClick={() => battleMode === 'tournament' ? startTournamentStage(stageIndex) : startExhibition()}>Rematch</button>}<button className="secondary" onClick={() => setScreen(battleMode === 'tournament' ? 'tournament' : 'team')}>Back</button></div></section></main>;
+    return <main key="result" className="login-screen result-screen screen-anim">{battleWinner === 'player' && <Confetti />}<section className="login-panel"><p className="eyebrow">Battle complete</p><h1>{battleWinner === 'player' ? 'Victory!' : 'Defeat'}</h1><p>{winnerName} won the match.</p><p className="result-summary">{turnCount} turns · {difficulty} difficulty</p>{tournamentWin && rewardEarned > 0 && <p>You earned {rewardEarned} arena points.</p>}{tournamentWin && rewardEarned === 0 && <p>Stage cleared again. First-clear points were already claimed.</p>}<div className="result-actions">{tournamentWin && hasNext ? <button onClick={() => { setRouteFocus(stageIndex + 1); setScreen('tournament'); setStageIndex(stageIndex + 1); }}>Continue Route</button> : <button onClick={() => battleMode === 'tournament' ? startTournamentStage(stageIndex) : startExhibition()}>Rematch</button>}<button className="secondary" onClick={() => setScreen(battleMode === 'tournament' ? 'tournament' : 'team')}>Back</button></div></section></main>;
   }
 
   const rivalName = battleMode === 'tournament' ? currentStage.opponent : 'Arena Rival';

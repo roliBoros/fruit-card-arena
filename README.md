@@ -27,7 +27,7 @@ The approved visual direction targets players aged **10+**: energetic, competiti
 - Easy, Normal and Hard rival difficulty
 - Five-stage tournament with first-clear rewards
 - Persistent wins, losses, battles and arena points
-- Compact persisted history for the 20 most recent matches
+- Compact persisted history for the 20 most recent matches, including teams, difficulty and turn count
 - First-run tutorial and keyboard-friendly controls
 - Static viewport-fitted layouts with no mouse-wheel page scrolling
 - Arrow and swipe navigation for roster and mobile tournament focus galleries

@@ -73,6 +73,7 @@ test('fresh player can reach and complete a tournament battle', async ({ page })
 
   await finishBattle(page);
   await expect(page.getByText('Battle complete')).toBeVisible();
+  await expect(page.getByText(/\d+ turns · normal difficulty/)).toBeVisible();
   await expectViewportFit(page);
 });
 
@@ -81,7 +82,7 @@ test('returning player can start an exhibition from saved state', async ({ page 
     localStorage.setItem('fca-username', 'Returning Player');
     localStorage.setItem('fca-tutorial-seen', 'yes');
     localStorage.setItem('fca-team', JSON.stringify(team));
-    localStorage.setItem('fca-record', JSON.stringify({ wins: 2, losses: 1, battles: 3, arenaPoints: 100, history: [{ id: 'saved-match', result: 'player', mode: 'tournament', opponent: 'Garden Rookie', points: 100, playedAt: '2026-06-20T12:00:00.000Z' }] }));
+    localStorage.setItem('fca-record', JSON.stringify({ wins: 2, losses: 1, battles: 3, arenaPoints: 100, history: [{ id: 'saved-match', result: 'player', mode: 'tournament', opponent: 'Garden Rookie', points: 100, playedAt: '2026-06-20T12:00:00.000Z', difficulty: 'hard', turns: 7, playerTeam: team, enemyTeam: ['orange', 'yello', 'grape'] }] }));
   }, selectedTeam);
 
   await page.goto('/');
@@ -98,6 +99,7 @@ test('returning player can start an exhibition from saved state', async ({ page 
   await page.getByRole('button', { name: 'History' }).click();
   await expect(page.getByRole('dialog', { name: 'Match History' })).toBeVisible();
   await expect(page.getByText('Garden Rookie')).toBeVisible();
+  await expect(page.getByText(/hard rival · 7 turns/)).toBeVisible();
   await expectViewportFit(page);
   await page.getByRole('button', { name: 'Close match history' }).click();
 

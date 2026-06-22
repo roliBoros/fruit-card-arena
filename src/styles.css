@@ -193,12 +193,17 @@ nav b { color: #a8d63e; }
 .history-modal h2 { margin: 4px 0 18px; color: #a8d63e; font-size: clamp(1.8rem, 5vw, 2.6rem); text-transform: uppercase; }
 .history-modal ol { max-height: min(50dvh, 390px); display: grid; gap: 8px; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
 .history-modal li { display: grid; grid-template-columns: 58px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 11px 12px; border: 1px solid #294960; border-radius: 13px; background: #10283b; }
-.history-modal li div { min-width: 0; display: grid; gap: 3px; }
+.history-details { min-width: 0; display: grid; gap: 3px; }
 .history-modal li strong, .history-modal li small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .history-modal li small, .history-empty { color: #a9bccb; }
 .history-modal li > b { color: #f5d45e; }
 .history-result { padding: 5px 8px; border-radius: 999px; text-align: center; color: #07111f; background: #e36c75; font-size: .7rem; font-weight: 900; text-transform: uppercase; }
 .history-result.player { background: #a8d63e; }
+.history-teams { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+.history-teams > i { color: #8298a9; font-size: .58rem; font-style: normal; font-weight: 900; }
+.history-team { display: flex; gap: 3px; }
+.history-team > span { width: 24px; height: 24px; overflow: hidden; border: 1px solid #3a5b72; border-radius: 7px; background: #0a1c2c; }
+.result-summary { color: #f5d45e; font-weight: 800; text-transform: capitalize; }
 
 .result-screen { position: relative; overflow: hidden; }
 .confetti-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
