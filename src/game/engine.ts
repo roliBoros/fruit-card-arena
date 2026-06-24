@@ -2,6 +2,7 @@ import { cardById } from '../data/registry';
 import type { FighterState, FruitCard } from '../types';
 
 export type BattleAction = 'attack' | 'guard' | 'special' | 'bonus';
+export type EnemyAction = Exclude<BattleAction, 'bonus'>;
 export type Difficulty = 'easy' | 'normal' | 'hard';
 export type BattleEffect = { type: 'hit' | 'guard' | 'heal' | 'special' | 'miss'; amount?: number } | null;
 
@@ -12,6 +13,7 @@ export interface TurnResult {
   enemyText: string;
   playerEffect: BattleEffect;
   enemyEffect: BattleEffect;
+  enemyAction: EnemyAction | null;
   bonusUsed: boolean;
   winner: 'player' | 'enemy' | null;
 }
@@ -134,7 +136,7 @@ function resolveSpecial(attacker: FighterState, target: FighterState, opposingTe
   return { totalDamage, healed, note };
 }
 
-export function chooseEnemyAction(fighter: FighterState, difficulty: Difficulty = 'normal'): Exclude<BattleAction, 'bonus'> {
+export function chooseEnemyAction(fighter: FighterState, difficulty: Difficulty = 'normal'): EnemyAction {
   const card = cardById[fighter.cardId];
   const hpRatio = fighter.hp / card.battle.maxHp;
   const settings = difficultySettings[difficulty];
@@ -143,7 +145,22 @@ export function chooseEnemyAction(fighter: FighterState, difficulty: Difficulty 
   return 'attack';
 }
 
-export function resolveTurn(playerTeam: FighterState[], enemyTeam: FighterState[], action: BattleAction, currentBonusUsed: boolean, difficulty: Difficulty = 'normal'): TurnResult {
+export function estimateEnemyDamage(attacker: FighterState, defender: FighterState, action: EnemyAction, difficulty: Difficulty = 'normal') {
+  const attackCard = cardById[attacker.cardId];
+  const defendCard = cardById[defender.cardId];
+  const settings = difficultySettings[difficulty];
+  if (action === 'guard') return 0;
+  if (action === 'special') {
+    const move = attackCard.special;
+    if (move.kind === 'shield' || move.kind === 'heal') return 0;
+    const hits = move.kind === 'double-hit' ? move.secondary ?? 2 : 1;
+    return Math.max(0, Math.round(move.amount * settings.damage) * hits);
+  }
+  const baseDamage = attackCard.battle.attack - Math.floor(defendCard.battle.defence * 0.55) - attacker.weakened;
+  return Math.max(8, Math.round(baseDamage * settings.damage));
+}
+
+export function resolveTurn(playerTeam: FighterState[], enemyTeam: FighterState[], action: BattleAction, currentBonusUsed: boolean, difficulty: Difficulty = 'normal', plannedEnemyAction?: EnemyAction): TurnResult {
   const players = playerTeam.map((fighter) => ({ ...fighter }));
   const enemies = enemyTeam.map((fighter) => ({ ...fighter }));
   const pIndex = livingIndex(players);
@@ -157,6 +174,7 @@ export function resolveTurn(playerTeam: FighterState[], enemyTeam: FighterState[
       enemyText: '',
       playerEffect: null,
       enemyEffect: null,
+      enemyAction: null,
       bonusUsed: currentBonusUsed,
       winner: pIndex >= 0 ? 'player' : 'enemy',
     };
@@ -170,6 +188,7 @@ export function resolveTurn(playerTeam: FighterState[], enemyTeam: FighterState[
   let enemyText = '';
   let playerEffect: BattleEffect = null;
   let enemyEffect: BattleEffect = null;
+  let enemyAction: EnemyAction | null = null;
   let bonusUsed = currentBonusUsed;
 
   if (action === 'guard') {
@@ -193,7 +212,7 @@ export function resolveTurn(playerTeam: FighterState[], enemyTeam: FighterState[
     enemyText = `${enemyCard.name} was defeated.`;
   } else {
     const settings = difficultySettings[difficulty];
-    const enemyAction = chooseEnemyAction(enemy, difficulty);
+    enemyAction = plannedEnemyAction ?? chooseEnemyAction(enemy, difficulty);
     if (enemyAction === 'guard') {
       enemy.guard = true;
       enemyText = `${enemyCard.name} chose Guard.`;
@@ -220,6 +239,7 @@ export function resolveTurn(playerTeam: FighterState[], enemyTeam: FighterState[
     enemyText,
     playerEffect,
     enemyEffect,
+    enemyAction,
     bonusUsed,
     winner: playersAlive && enemiesAlive ? null : enemiesAlive ? 'enemy' : 'player',
   };

@@ -22,11 +22,14 @@ The approved visual direction targets players aged **10+**: energetic, competiti
 - Choose a team of three cards
 - Fight a computer-controlled opponent
 - Attack, Guard and Special actions
+- Visible rival intent before each turn
+- Three-pip juice resource: Attack and Guard build juice, Specials and Bonus spend it
 - One Bonus card per battle for **+20 damage**
 - Lightweight card movement, impact flashes and floating damage effects
 - Browser storage for local progress
 - Easy, Normal and Hard rival difficulty
 - Five-stage tournament with first-clear rewards
+- Tournament arena twists that change juice, special costs or starting shield
 - Persistent wins, losses, battles and arena points
 - Compact persisted history for the 20 most recent matches, including teams, difficulty and turn count
 - First-run tutorial and keyboard-friendly controls

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cardById } from '../data/registry';
-import { chooseEnemyAction, freshFighter, resolveTurn } from './engine';
+import { chooseEnemyAction, estimateEnemyDamage, freshFighter, resolveTurn } from './engine';
 
 const makeTeam = (ids: string[]) => ids.map((id) => freshFighter(cardById[id]));
 
@@ -93,5 +93,27 @@ describe('battle engine', () => {
     const fighter = makeTeam(['coco'])[0];
     expect(chooseEnemyAction(fighter, 'easy')).toBe('attack');
     expect(chooseEnemyAction(fighter, 'hard')).toBe('special');
+  });
+
+  it('resolves the planned enemy intent shown to the player', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.9);
+    const result = resolveTurn(
+      makeTeam(['ava', 'piney', 'peachy']),
+      makeTeam(['coco', 'tom', 'orange']),
+      'attack',
+      false,
+      'normal',
+      'guard',
+    );
+
+    expect(result.enemyAction).toBe('guard');
+    expect(result.enemyText).toContain('chose Guard');
+  });
+
+  it('estimates incoming enemy attack damage for the intent panel', () => {
+    const players = makeTeam(['ava']);
+    const enemies = makeTeam(['coco']);
+    expect(estimateEnemyDamage(enemies[0], players[0], 'attack', 'hard')).toBeGreaterThan(0);
+    expect(estimateEnemyDamage(enemies[0], players[0], 'guard', 'hard')).toBe(0);
   });
 });
