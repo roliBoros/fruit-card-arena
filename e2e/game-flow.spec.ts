@@ -14,11 +14,27 @@ async function expectViewportFit(page: Page) {
   expect(dimensions.documentHeight).toBeLessThanOrEqual(dimensions.viewportHeight + 1);
 }
 
+// Attacks open the v0.8 power-strike gauge; lock it if it appears. The gauge
+// self-resolves under prefers-reduced-motion, so its absence is also valid.
+async function lockStrikeIfShown(page: Page) {
+  const lock = page.getByRole('button', { name: 'STRIKE' });
+  const shown = await lock.waitFor({ state: 'visible', timeout: 1500 }).then(() => true).catch(() => false);
+  if (shown) {
+    await lock.click();
+    await page.locator('.strike-backdrop').waitFor({ state: 'hidden' });
+  }
+}
+
+async function attackOnce(page: Page) {
+  await page.getByRole('button', { name: /Attack/ }).click();
+  await lockStrikeIfShown(page);
+}
+
 async function finishBattle(page: Page) {
   for (let turn = 0; turn < 60; turn += 1) {
     const result = page.getByRole('heading', { name: /^(Victory!|Defeat)$/ });
     if (await result.isVisible()) return;
-    await page.getByRole('button', { name: /Attack/ }).click();
+    await attackOnce(page);
   }
 
   throw new Error('Battle did not reach a result within 60 turns.');
@@ -32,6 +48,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('fresh player can reach and complete a tournament battle', async ({ page }) => {
+  test.setTimeout(120_000); // strike gauge adds ~1s per battle turn
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Fruit Card Arena' })).toBeVisible();
   await expectViewportFit(page);
@@ -70,6 +87,14 @@ test('fresh player can reach and complete a tournament battle', async ({ page })
   await expect(page.getByRole('dialog', { name: 'Dragon-Fruit card details' })).toBeVisible();
   await expectViewportFit(page);
   await page.getByRole('button', { name: 'Close card details' }).click();
+
+  // v0.8: attacking opens the power-strike timing gauge.
+  await page.getByRole('button', { name: /Attack/ }).click();
+  await expect(page.locator('.strike-panel')).toBeVisible();
+  await expect(page.locator('.strike-marker')).toBeVisible();
+  await page.getByRole('button', { name: 'STRIKE' }).click();
+  await expect(page.locator('.strike-backdrop')).toBeHidden();
+  await expect(page.getByText(/dealt|dodged|CRITICAL/)).toBeVisible();
 
   await finishBattle(page);
   await expect(page.getByText('Battle complete')).toBeVisible();
@@ -116,8 +141,8 @@ test('returning player can start an exhibition from saved state', async ({ page 
   await page.getByRole('button', { name: 'Inspect Dragon-Fruit' }).click();
   await expect(page.getByRole('dialog', { name: 'Dragon-Fruit card details' })).toBeVisible();
   await page.getByRole('button', { name: 'Close card details' }).click();
-  await page.getByRole('button', { name: /Attack/ }).click();
-  await expect(page.getByText(/dealt|dodged/)).toBeVisible();
+  await attackOnce(page);
+  await expect(page.getByText(/dealt|dodged|CRITICAL/)).toBeVisible();
 });
 
 test('player can reset saved progress without losing their name', async ({ page }) => {
