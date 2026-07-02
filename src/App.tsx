@@ -5,6 +5,8 @@ import { chooseEnemyAction, estimateEnemyDamage, freshFighter, livingIndex, reso
 import type { BattleAction, BattleEffect, Difficulty, EnemyAction } from './game/engine';
 import { isMuted, primeAudio, setMuted, sfx } from './game/effects';
 import Confetti from './Confetti';
+import { ImpactBurst, StrikeGauge, strikeMultiplier } from './BattleFx';
+import type { StrikeTier } from './BattleFx';
 import type { FighterState, FruitCard } from './types';
 
 type Screen = 'login' | 'team' | 'tournament' | 'battle' | 'result';
@@ -103,8 +105,9 @@ function CardModal({ card, onClose }: { card: FruitCard; onClose: () => void }) 
   return <div className="focus-backdrop" role="dialog" aria-modal="true" aria-label={`${card.name} card details`}><section className="card-modal"><button className="modal-close" onClick={onClose} aria-label="Close card details">×</button><Card card={card} /></section></div>;
 }
 
-function BattleFighter({ name, fighter, card, effect, onInspect }: { name: string; fighter: FighterState; card: FruitCard; effect: BattleEffect; onInspect: () => void }) {
-  return <div className={`fighter ${effect?.type ?? ''}`}><div className="fighter-heading"><h2>{name}</h2><span>{card.name} · {card.role}</span></div><HealthBar fighter={fighter} /><button className="battle-portrait" style={{ '--accent': card.accent } as React.CSSProperties} onClick={onInspect} aria-label={`Inspect ${card.name}`}><Artwork card={card} alt={`${card.name} battle artwork`} /><span className="inspect-hint">View card</span></button>{effect?.amount ? <div className={`floating-effect ${effect.type}`}>{effect.type === 'heal' ? '+' : '-'}{effect.amount}</div> : null}{effect?.type === 'miss' && <div className="floating-effect miss">MISS</div>}</div>;
+function BattleFighter({ name, fighter, card, effect, burst, crit = false, onInspect }: { name: string; fighter: FighterState; card: FruitCard; effect: BattleEffect; burst?: { kind: 'hit' | 'crit' | 'heal' | 'special'; seed: number }; crit?: boolean; onInspect: () => void }) {
+  const bigHit = (effect?.amount ?? 0) >= 24;
+  return <div className={`fighter ${effect?.type ?? ''}`}><div className="fighter-heading"><h2>{name}</h2><span>{card.name} · {card.role}</span></div><HealthBar fighter={fighter} /><button className="battle-portrait" style={{ '--accent': card.accent } as React.CSSProperties} onClick={onInspect} aria-label={`Inspect ${card.name}`}><Artwork card={card} alt={`${card.name} battle artwork`} /><span className="inspect-hint">View card</span></button>{burst && <ImpactBurst key={burst.seed} kind={burst.kind} seed={burst.seed} />}{effect?.amount ? <div className={`floating-effect ${effect.type} ${crit ? 'crit' : ''} ${bigHit ? 'big' : ''}`}>{effect.type === 'heal' ? '+' : '-'}{effect.amount}{crit ? <small>CRIT!</small> : null}</div> : null}{effect?.type === 'miss' && <div className="floating-effect miss">MISS</div>}</div>;
 }
 
 function SoundToggle({ muted, onToggle }: { muted: boolean; onToggle: () => void }) {
@@ -116,7 +119,7 @@ function SoundToggle({ muted, onToggle }: { muted: boolean; onToggle: () => void
 }
 
 function Tutorial({ onClose }: { onClose: () => void }) {
-  return <div className="tutorial-backdrop" role="dialog" aria-modal="true" aria-labelledby="tutorial-title"><section className="tutorial-panel"><p className="eyebrow">Quick start</p><h2 id="tutorial-title">How to play</h2><div className="tutorial-steps"><article><b>1</b><h3>Read the rival plan</h3><p>The battle screen shows what the rival will do next, so Guard and Bonus have timing.</p></article><article><b>2</b><h3>Build juice</h3><p>Attack gains 1 juice. Guard gains 2 juice and halves the next hit.</p></article><article><b>3</b><h3>Spend at the right time</h3><p>Specials cost juice and each fighter gets one. The +20 Bonus is still one-use.</p></article><article><b>4</b><h3>Use arena rules</h3><p>Tournament stages have twists like cheaper specials, free shield or faster juice.</p></article></div><button onClick={onClose}>Ready to battle</button></section></div>;
+  return <div className="tutorial-backdrop" role="dialog" aria-modal="true" aria-labelledby="tutorial-title"><section className="tutorial-panel"><p className="eyebrow">Quick start</p><h2 id="tutorial-title">How to play</h2><div className="tutorial-steps"><article><b>1</b><h3>Read the rival plan</h3><p>The battle screen shows what the rival will do next, so Guard and Bonus have timing.</p></article><article><b>2</b><h3>Build juice</h3><p>Attack gains 1 juice. Guard gains 2 juice and halves the next hit.</p></article><article><b>3</b><h3>Time your strike</h3><p>Attacks open a power gauge. Tap when the marker hits the gold centre for a CRITICAL, and chain hits for combo damage.</p></article><article><b>4</b><h3>Use arena rules</h3><p>Tournament stages have twists like cheaper specials, free shield or faster juice.</p></article></div><button onClick={onClose}>Ready to battle</button></section></div>;
 }
 
 function HistoryTeam({ ids = [] }: { ids?: string[] }) {
@@ -162,6 +165,12 @@ export default function App() {
   const [turnCount, setTurnCount] = useState(0);
   const [juice, setJuice] = useState(1);
   const [enemyIntent, setEnemyIntent] = useState<EnemyAction | null>(null);
+  const [pendingStrike, setPendingStrike] = useState<BattleAction | null>(null);
+  const [combo, setCombo] = useState(0);
+  const [arenaShake, setArenaShake] = useState<'' | 'shake-small' | 'shake-big'>('');
+  const [critFlash, setCritFlash] = useState(false);
+  const [lastCrit, setLastCrit] = useState(false);
+  const [bursts, setBursts] = useState<{ player?: { kind: 'hit' | 'crit' | 'heal' | 'special'; seed: number }; enemy?: { kind: 'hit' | 'crit' | 'heal' | 'special'; seed: number } }>({});
 
   useEffect(() => {
     let startX: number | null = null;
@@ -269,6 +278,7 @@ export default function App() {
     setPlayerTeam(nextPlayers);
     setEnemyTeam(nextEnemies);
     setBattleMode(mode); setStageIndex(index); setBonusUsed(false); setBattleWinner(null); setRewardEarned(0); setTurnCount(0); setPlayerEffect(null); setEnemyEffect(null);
+    setCombo(0); setPendingStrike(null); setBursts({}); setArenaShake(''); setCritFlash(false); setLastCrit(false);
     setJuice(stageTwist?.rule === 'starter-juice' ? 2 : 1);
     setEnemyIntent(chooseEnemyAction(nextEnemies[0], difficulty));
     setMessage('Battle ready. Read the rival plan, build juice, then spend it at the right time.'); setScreen('battle');
@@ -282,19 +292,71 @@ export default function App() {
 
   function startTournamentStage(index: number) { const stage = tournamentStages[index]; if (!stage || index > tournamentProgress) return; beginBattle([...stage.team], 'tournament', index); }
 
-  function playTurn(action: BattleAction) {
+  function requestAction(action: BattleAction) {
+    if (!playerActive || !enemyActive || !canPlayAction(action) || pendingStrike) return;
+    primeAudio();
+    // Offensive moves become a timing skill moment; guard resolves instantly.
+    if (action === 'attack' || action === 'bonus' || action === 'special') {
+      sfx('click');
+      setPendingStrike(action);
+      return;
+    }
+    playTurn(action);
+  }
+
+  function resolveStrike(tier: StrikeTier) {
+    const action = pendingStrike;
+    setPendingStrike(null);
+    if (action) playTurn(action, tier);
+  }
+
+  function playTurn(action: BattleAction, tier?: StrikeTier) {
     if (!playerActive || !enemyActive || !canPlayAction(action)) return;
     primeAudio();
     const completedTurns = turnCount + 1;
     setTurnCount(completedTurns);
-    const result = resolveTurn(playerTeam, enemyTeam, action, bonusUsed, difficulty, enemyIntent ?? undefined);
-    setPlayerTeam(result.players); setEnemyTeam(result.enemies); setPlayerEffect(result.playerEffect); setEnemyEffect(result.enemyEffect); setBonusUsed(result.bonusUsed); setMessage(`${result.playerText} ${result.enemyText}`.trim());
+    const comboPower = 1 + Math.min(combo, 5) * 0.08;
+    const power = (tier ? strikeMultiplier[tier] : 1) * comboPower;
+    const crit = tier === 'perfect';
+    const enemyHpBefore = enemyTeam.reduce((total, fighter) => total + fighter.hp, 0);
+    const result = resolveTurn(playerTeam, enemyTeam, action, bonusUsed, difficulty, enemyIntent ?? undefined, power);
+    const enemyHpLoss = enemyHpBefore - result.enemies.reduce((total, fighter) => total + fighter.hp, 0);
+    setPlayerTeam(result.players); setEnemyTeam(result.enemies); setPlayerEffect(result.playerEffect); setEnemyEffect(result.enemyEffect); setBonusUsed(result.bonusUsed);
+    setMessage(`${crit && enemyHpLoss > 0 ? 'CRITICAL! ' : ''}${result.playerText} ${result.enemyText}`.trim());
     setJuice(juiceAfterAction(action));
+    setLastCrit(crit && enemyHpLoss > 0);
     const nextEnemyIndex = livingIndex(result.enemies);
     setEnemyIntent(result.winner || nextEnemyIndex < 0 ? null : chooseEnemyAction(result.enemies[nextEnemyIndex], difficulty));
+
+    // Combo streak: offensive moves that land damage build it, whiffs break it.
+    const offensive = action !== 'guard';
+    const nextCombo = offensive ? (enemyHpLoss > 0 ? combo + 1 : 0) : combo;
+    setCombo(nextCombo);
+    if (nextCombo >= 2 && nextCombo > combo) window.setTimeout(() => sfx('combo'), 260);
+
+    // Impact FX: particle bursts, screen shake, crit flash.
+    const seed = Date.now() % 100000;
+    const nextBursts: typeof bursts = {};
+    if (enemyHpLoss > 0) nextBursts.enemy = { kind: crit ? 'crit' : action === 'special' ? 'special' : 'hit', seed };
+    if (result.playerEffect?.type === 'hit') nextBursts.player = { kind: 'hit', seed: seed + 1 };
+    if (result.playerEffect?.type === 'heal') nextBursts.player = { kind: 'heal', seed: seed + 2 };
+    setBursts(nextBursts);
+    window.setTimeout(() => setBursts({}), 760);
+    const shake = crit && enemyHpLoss > 0 ? 'shake-big' : enemyHpLoss > 0 || result.playerEffect?.type === 'hit' ? 'shake-small' : '';
+    if (shake) {
+      setArenaShake('');
+      window.requestAnimationFrame(() => setArenaShake(shake));
+      window.setTimeout(() => setArenaShake(''), 500);
+    }
+    if (crit && enemyHpLoss > 0) {
+      setCritFlash(true);
+      window.setTimeout(() => setCritFlash(false), 320);
+    }
+
     // Sound for the player's chosen move, then a staggered impact for the outcome.
     sfx(action === 'guard' ? 'guard' : action === 'special' ? 'special' : 'attack');
-    if (result.enemyEffect?.type === 'hit') window.setTimeout(() => sfx('hit'), 150);
+    if (enemyHpLoss > 0 && crit) window.setTimeout(() => sfx('crit'), 140);
+    else if (result.enemyEffect?.type === 'hit' || enemyHpLoss > 0) window.setTimeout(() => sfx('hit'), 150);
     else if (result.enemyEffect?.type === 'miss') window.setTimeout(() => sfx('miss'), 150);
     else if (result.playerEffect?.type === 'heal') window.setTimeout(() => sfx('heal'), 150);
     if (result.playerEffect?.type === 'hit') window.setTimeout(() => sfx('hit'), 320);
@@ -328,5 +390,5 @@ export default function App() {
   }
 
   const rivalName = battleMode === 'tournament' ? currentStage.opponent : 'Arena Rival';
-  return <><main key="battle" className="app-shell battle-screen viewport-screen screen-anim"><nav><b>FRUIT CARD ARENA</b><div className="nav-actions"><SoundToggle muted={muted} onToggle={toggleMute} /><span>{battleMode === 'tournament' ? currentStage.name : 'Exhibition'} · {difficulty}</span></div></nav><section className="battle-title"><p className="eyebrow">Three-card battle</p><h1>Battle Arena</h1></section><section className="battle-control-strip"><JuiceMeter juice={juice} /><IntentPanel intent={enemyIntent} enemy={enemyActive} player={playerActive} difficulty={difficulty} />{activeTwist ? <aside className="twist-chip"><strong>{activeTwist.name}</strong><span>{activeTwist.text}</span></aside> : <aside className="twist-chip"><strong>Training Field</strong><span>Attack gains 1 juice. Guard gains 2.</span></aside>}</section><section className="team-heads"><TeamStrip team={playerTeam} activeIndex={playerActiveIndex} label={`${username}'s team`} /><TeamStrip team={enemyTeam} activeIndex={enemyActiveIndex} label={`${rivalName}'s team`} /></section><section className="arena">{playerActive && playerCard && <BattleFighter name={username} fighter={playerActive} card={playerCard} effect={playerEffect} onInspect={() => setInspectedCardId(playerCard.id)} />}<div className="versus">VS</div>{enemyActive && enemyCard && <BattleFighter name={rivalName} fighter={enemyActive} card={enemyCard} effect={enemyEffect} onInspect={() => setInspectedCardId(enemyCard.id)} />}</section><section className="battle-console"><p className="battle-message" aria-live="polite">{message}</p><div className="actions"><button onClick={() => playTurn('attack')} disabled={!canPlayAction('attack')}>⚔ Attack <small>+1</small></button><button onClick={() => playTurn('guard')} disabled={!canPlayAction('guard')}>🛡 Guard <small>{activeTwist?.rule === 'guard-refill' ? 'fill' : '+2'}</small></button><button onClick={() => playTurn('special')} disabled={!canPlayAction('special')}>✨ {playerCard?.special.name} <small>-{specialCost()}</small></button><button className="bonus" onClick={() => playTurn('bonus')} disabled={!canPlayAction('bonus')}>+20 Bonus <small>-{bonusCost()}</small></button><button className="secondary" onClick={() => setScreen(battleMode === 'tournament' ? 'tournament' : 'team')}>Leave</button></div></section></main>{inspectedCard && <CardModal card={inspectedCard} onClose={() => setInspectedCardId(null)} />}</>;
+  return <><main key="battle" className="app-shell battle-screen viewport-screen screen-anim"><nav><b>FRUIT CARD ARENA</b><div className="nav-actions"><SoundToggle muted={muted} onToggle={toggleMute} /><span>{battleMode === 'tournament' ? currentStage.name : 'Exhibition'} · {difficulty}</span></div></nav><section className="battle-title"><p className="eyebrow">Three-card battle</p><h1>Battle Arena</h1></section><section className="battle-control-strip"><JuiceMeter juice={juice} /><IntentPanel intent={enemyIntent} enemy={enemyActive} player={playerActive} difficulty={difficulty} />{activeTwist ? <aside className="twist-chip"><strong>{activeTwist.name}</strong><span>{activeTwist.text}</span></aside> : <aside className="twist-chip"><strong>Training Field</strong><span>Attack gains 1 juice. Guard gains 2.</span></aside>}</section><section className="team-heads"><TeamStrip team={playerTeam} activeIndex={playerActiveIndex} label={`${username}'s team`} /><TeamStrip team={enemyTeam} activeIndex={enemyActiveIndex} label={`${rivalName}'s team`} /></section><section className={`arena ${arenaShake}`}>{critFlash && <div className="crit-flash" aria-hidden="true" />}{combo >= 2 && <div key={combo} className="combo-badge" aria-label={`Combo ${combo}`}>COMBO ×{combo}</div>}{playerActive && playerCard && <BattleFighter name={username} fighter={playerActive} card={playerCard} effect={playerEffect} burst={bursts.player} onInspect={() => setInspectedCardId(playerCard.id)} />}<div className="versus">VS</div>{enemyActive && enemyCard && <BattleFighter name={rivalName} fighter={enemyActive} card={enemyCard} effect={enemyEffect} burst={bursts.enemy} crit={lastCrit} onInspect={() => setInspectedCardId(enemyCard.id)} />}</section><section className="battle-console"><p className="battle-message" aria-live="polite">{message}</p><div className="actions"><button onClick={() => requestAction('attack')} disabled={!canPlayAction('attack')}>⚔ Attack <small>+1</small></button><button onClick={() => requestAction('guard')} disabled={!canPlayAction('guard')}>🛡 Guard <small>{activeTwist?.rule === 'guard-refill' ? 'fill' : '+2'}</small></button><button onClick={() => requestAction('special')} disabled={!canPlayAction('special')}>✨ {playerCard?.special.name} <small>-{specialCost()}</small></button><button className="bonus" onClick={() => requestAction('bonus')} disabled={!canPlayAction('bonus')}>+20 Bonus <small>-{bonusCost()}</small></button><button className="secondary" onClick={() => setScreen(battleMode === 'tournament' ? 'tournament' : 'team')}>Leave</button></div></section></main>{pendingStrike && <StrikeGauge label={pendingStrike === 'attack' ? 'Attack' : pendingStrike === 'bonus' ? '+20 Bonus' : playerCard?.special.name ?? 'Special'} onResolve={resolveStrike} />}{inspectedCard && <CardModal card={inspectedCard} onClose={() => setInspectedCardId(null)} />}</>;
 }

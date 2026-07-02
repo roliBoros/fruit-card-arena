@@ -160,7 +160,7 @@ export function estimateEnemyDamage(attacker: FighterState, defender: FighterSta
   return Math.max(8, Math.round(baseDamage * settings.damage));
 }
 
-export function resolveTurn(playerTeam: FighterState[], enemyTeam: FighterState[], action: BattleAction, currentBonusUsed: boolean, difficulty: Difficulty = 'normal', plannedEnemyAction?: EnemyAction): TurnResult {
+export function resolveTurn(playerTeam: FighterState[], enemyTeam: FighterState[], action: BattleAction, currentBonusUsed: boolean, difficulty: Difficulty = 'normal', plannedEnemyAction?: EnemyAction, playerPower = 1): TurnResult {
   const players = playerTeam.map((fighter) => ({ ...fighter }));
   const enemies = enemyTeam.map((fighter) => ({ ...fighter }));
   const pIndex = livingIndex(players);
@@ -196,13 +196,13 @@ export function resolveTurn(playerTeam: FighterState[], enemyTeam: FighterState[
     playerText = `${playerCard.name} is guarding.`;
     playerEffect = { type: 'guard' };
   } else if (action === 'special') {
-    const result = resolveSpecial(player, enemy, enemies);
+    const result = resolveSpecial(player, enemy, enemies, playerPower);
     playerText = `${playerCard.name} used ${result.note}.`;
     playerEffect = result.healed > 0 && result.totalDamage === 0 ? { type: 'heal', amount: result.healed } : { type: 'special', amount: result.totalDamage || result.healed };
     if (result.totalDamage > 0) enemyEffect = { type: 'hit', amount: result.totalDamage };
   } else {
     const bonus = action === 'bonus' ? 20 : 0;
-    const result = applyDamage(enemy, normalDamage(player, enemy, bonus));
+    const result = applyDamage(enemy, normalDamage(player, enemy, bonus, playerPower));
     bonusUsed = bonusUsed || action === 'bonus';
     playerText = result.missed ? `${enemyCard.name} dodged the attack.` : `${playerCard.name} dealt ${result.damage}${bonus ? ' boosted' : ''} damage.`;
     enemyEffect = result.missed ? { type: 'miss' } : { type: 'hit', amount: result.damage };

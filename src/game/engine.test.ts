@@ -116,4 +116,27 @@ describe('battle engine', () => {
     expect(estimateEnemyDamage(enemies[0], players[0], 'attack', 'hard')).toBeGreaterThan(0);
     expect(estimateEnemyDamage(enemies[0], players[0], 'guard', 'hard')).toBe(0);
   });
+
+  it('scales player attack damage with the power-strike multiplier', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const players = makeTeam(['dragon-fruit', 'ava', 'piney']);
+    const enemies = makeTeam(['tom', 'poey', 'orange']);
+    const normal = resolveTurn(players, enemies, 'attack', false, 'normal', 'guard', 1);
+    const perfect = resolveTurn(players, enemies, 'attack', false, 'normal', 'guard', 1.5);
+
+    const normalLoss = enemies[0].hp - normal.enemies[0].hp;
+    const perfectLoss = enemies[0].hp - perfect.enemies[0].hp;
+    expect(perfectLoss).toBeGreaterThan(normalLoss);
+  });
+
+  it('scales damaging specials with the power-strike multiplier', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.9);
+    const enemiesBase = makeTeam(['tom']);
+    const enemiesBoosted = makeTeam(['tom']);
+    const base = resolveTurn(makeTeam(['piney']), enemiesBase, 'special', false, 'normal', 'guard', 1);
+    const boosted = resolveTurn(makeTeam(['piney']), enemiesBoosted, 'special', false, 'normal', 'guard', 1.5);
+    const baseLoss = enemiesBase[0].hp - base.enemies[0].hp;
+    const boostedLoss = enemiesBoosted[0].hp - boosted.enemies[0].hp;
+    expect(boostedLoss).toBeGreaterThan(baseLoss);
+  });
 });

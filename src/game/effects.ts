@@ -87,6 +87,8 @@ export type SoundName =
   | 'click'
   | 'attack'
   | 'hit'
+  | 'crit'
+  | 'combo'
   | 'special'
   | 'heal'
   | 'miss'
@@ -98,6 +100,8 @@ const buzzPatterns: Record<SoundName, number | number[]> = {
   click: 8,
   attack: 18,
   hit: [12, 18, 24],
+  crit: [16, 22, 40, 22, 16],
+  combo: [10, 14, 10],
   special: [10, 20, 10, 20],
   heal: 10,
   miss: 6,
@@ -118,6 +122,20 @@ export function sfx(name: SoundName) {
       play([
         { freq: 180, to: 70, start: 0, duration: 0.16, type: 'square', gain: 0.18 },
         { freq: 90, to: 50, start: 0.02, duration: 0.16, type: 'sawtooth', gain: 0.12 },
+      ]);
+      break;
+    case 'crit':
+      play([
+        { freq: 220, to: 60, start: 0, duration: 0.2, type: 'square', gain: 0.2 },
+        { freq: 110, to: 45, start: 0.02, duration: 0.2, type: 'sawtooth', gain: 0.15 },
+        { freq: 1320, start: 0.05, duration: 0.16, type: 'triangle', gain: 0.13 },
+        { freq: 1760, start: 0.13, duration: 0.2, type: 'triangle', gain: 0.12 },
+      ]);
+      break;
+    case 'combo':
+      play([
+        { freq: 740, start: 0, duration: 0.07, type: 'triangle', gain: 0.12 },
+        { freq: 988, start: 0.06, duration: 0.09, type: 'triangle', gain: 0.13 },
       ]);
       break;
     case 'special':
